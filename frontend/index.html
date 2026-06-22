@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Оформление заказа</title>
+  <link rel="stylesheet" href="/styles.css?v=tilda-captcha-1" />
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">V2 Sport Dress</p>
+        <h1>Клиенты и программа лояльности</h1>
+      </div>
+      <span id="apiStatus" class="status status-neutral">Локальный режим</span>
+    </header>
+
+    <nav class="tabs" aria-label="Работа с клиентом">
+      <button class="tab active" type="button" data-tab="register">Зарегистрировать</button>
+      <button class="tab" type="button" data-tab="find">Найти клиента</button>
+    </nav>
+
+    <section id="register" class="tab-content active">
+      <div class="workspace">
+        <aside class="panel client-panel">
+          <div>
+            <p class="section-kicker">Новый клиент</p>
+            <h2>Регистрация</h2>
+          </div>
+
+          <form id="registerForm">
+            <div class="register-grid">
+              <label class="field">
+                <span>Имя</span>
+                <input id="regFirstName" autocomplete="given-name" placeholder="Иван" />
+              </label>
+              <label class="field">
+                <span>Фамилия</span>
+                <input id="regLastName" autocomplete="family-name" placeholder="Иванов" />
+              </label>
+              <label class="field">
+                <span>Телефон</span>
+                <input id="regPhone" type="tel" autocomplete="tel" placeholder="+7 999 000-00-00" />
+              </label>
+              <label class="field">
+                <span>Email</span>
+                <input id="regEmail" type="email" autocomplete="email" placeholder="client@mail.ru" />
+              </label>
+            </div>
+            <button id="registerButton" class="primary-button" type="submit">Создать клиента</button>
+            <p id="registerMessage" class="form-message" role="status"></p>
+            <a id="registerSiteCompletionLink" class="site-completion-link" href="#" target="_blank" rel="noopener" hidden>
+              Завершить регистрацию на сайте
+            </a>
+          </form>
+
+          <article class="client-card">
+            <div class="client-name" id="registerClientName">Клиент не создан</div>
+            <div class="client-contact" id="registerClientContact">После создания отправим регистрацию на сайт</div>
+            <div class="client-stats">
+              <div><span>Скидка</span><b id="registerDiscountCard">0%</b></div>
+              <div><span>Покупки</span><b id="registerPurchasesCard">0 ₽</b></div>
+              <div><span>Бонусы</span><b id="registerBonusesCard">300 ₽</b></div>
+            </div>
+            <p class="note">Новый клиент получает приветственный бонус 300 ₽.</p>
+          </article>
+        </aside>
+
+        <section class="panel order-panel">
+          <div>
+            <p class="section-kicker">Черновик</p>
+            <h2>Заказ</h2>
+          </div>
+          <div id="registerOrderRows"></div>
+          <button class="secondary-button" type="button" data-add-row="register">+ Добавить товар</button>
+          <div class="order-summary">
+            <h3>Расчёт</h3>
+            <div class="summary-line"><span>Товары</span><b><span id="registerSubtotal">0</span> ₽</b></div>
+            <div class="summary-line"><span>Скидка <span id="registerDiscountPercent">0</span>%</span><b>−<span id="registerDiscountAmount">0</span> ₽</b></div>
+            <label class="bonus-line">
+              <span><input id="registerUseBonuses" type="checkbox" /> Использовать бонусы</span>
+              <input id="registerBonusesToUse" type="number" value="0" min="0" />
+            </label>
+            <div class="summary-line"><span>Бонусы</span><b>−<span id="registerBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line pay-total"><span>К оплате</span><span><span id="registerPayTotal">0</span> ₽</span></div>
+          </div>
+          <button class="main-button" type="button" data-create-order="register">Оформить заказ</button>
+        </section>
+      </div>
+    </section>
+
+    <section id="find" class="tab-content">
+      <div class="workspace">
+        <aside class="panel client-panel">
+          <div>
+            <p class="section-kicker">Bitrix24</p>
+            <h2>Поиск клиента</h2>
+          </div>
+
+          <form id="searchForm">
+            <label class="field">
+              <span>Телефон или Email</span>
+              <input id="searchValue" autocomplete="off" placeholder="+7 999 000-00-00 или client@mail.ru" required />
+            </label>
+            <button id="searchButton" class="primary-button" type="submit">Найти клиента</button>
+            <p id="searchMessage" class="form-message" role="status"></p>
+          </form>
+
+          <article class="client-card">
+            <div class="client-heading">
+              <div>
+                <div class="client-name" id="findClientName">Клиент не выбран</div>
+                <div class="client-contact" id="findClientContact">Введите телефон или email</div>
+              </div>
+              <span id="findClientId" class="contact-id" hidden></span>
+            </div>
+            <div class="client-stats">
+              <div><span>Скидка</span><b id="findDiscountCard">0%</b></div>
+              <div><span>Покупки</span><b id="findPurchasesCard">0 ₽</b></div>
+              <div><span>Бонусы</span><b id="findBonusesCard">0 ₽</b></div>
+            </div>
+          </article>
+
+          <article class="details-card">
+            <h3>Информация о клиенте</h3>
+            <dl class="details-list">
+              <div><dt>Заказов</dt><dd id="findOrdersCount">—</dd></div>
+              <div><dt>Начислено бонусов</dt><dd id="findAccruedTotal">—</dd></div>
+              <div><dt>Списано бонусов</dt><dd id="findSpentTotal">—</dd></div>
+              <div><dt>Последний заказ</dt><dd id="findLastOrder">—</dd></div>
+              <div><dt>Дата заказа</dt><dd id="findLastOrderDate">—</dd></div>
+              <div><dt>Сумма заказа</dt><dd id="findLastOrderSum">—</dd></div>
+              <div><dt>Синхронизация</dt><dd id="findSyncedAt">—</dd></div>
+            </dl>
+          </article>
+        </aside>
+
+        <section class="panel order-panel">
+          <div>
+            <p class="section-kicker">Черновик</p>
+            <h2>Заказ</h2>
+          </div>
+          <div id="findOrderRows"></div>
+          <button class="secondary-button" type="button" data-add-row="find">+ Добавить товар</button>
+          <div class="order-summary">
+            <h3>Расчёт</h3>
+            <div class="summary-line"><span>Товары</span><b><span id="findSubtotal">0</span> ₽</b></div>
+            <div class="summary-line"><span>Скидка <span id="findDiscountPercent">0</span>%</span><b>−<span id="findDiscountAmount">0</span> ₽</b></div>
+            <label class="bonus-line">
+              <span><input id="findUseBonuses" type="checkbox" /> Использовать бонусы</span>
+              <input id="findBonusesToUse" type="number" value="0" min="0" />
+            </label>
+            <div class="summary-line"><span>Бонусы</span><b>−<span id="findBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line pay-total"><span>К оплате</span><span><span id="findPayTotal">0</span> ₽</span></div>
+          </div>
+          <button class="main-button" type="button" data-create-order="find">Оформить заказ</button>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <template id="productRowTemplate">
+    <div class="product-row">
+      <label><span>Товар</span><input class="product-select" autocomplete="off" placeholder="Выберите товар" /></label>
+      <label><span>Кол-во</span><input class="product-quantity" type="number" value="1" min="1" /></label>
+      <label><span>Цена</span><input class="product-price" type="number" value="0" min="0" /></label>
+      <label><span>Сумма</span><input class="product-sum" type="number" value="0" readonly /></label>
+      <button class="danger-button" type="button" title="Удалить товар">×</button>
+    </div>
+  </template>
+
+  <script src="/app.js?v=tilda-captcha-1"></script>
+</body>
+</html>

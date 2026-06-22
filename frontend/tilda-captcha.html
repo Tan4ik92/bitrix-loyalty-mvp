@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Завершение регистрации на сайте</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: Arial, sans-serif;
+      background: #f7f7f3;
+      color: #111;
+    }
+    .card {
+      width: min(720px, calc(100vw - 32px));
+      padding: 28px;
+      border-radius: 28px;
+      background: #fff;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 26px;
+    }
+    p {
+      margin: 8px 0;
+      color: #555;
+      line-height: 1.45;
+    }
+    iframe {
+      width: 100%;
+      height: 520px;
+      margin-top: 18px;
+      border: 1px solid #e7e7e0;
+      border-radius: 18px;
+      background: #fff;
+    }
+    .status {
+      margin-top: 16px;
+      font-weight: 700;
+      color: #111;
+    }
+    .success {
+      color: #16883f;
+    }
+    .error {
+      color: #d72525;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>Завершение регистрации на сайте</h1>
+    <p id="clientText">Загружаем проверку Tilda...</p>
+    <p>Пройдите проверку ниже. После успешной проверки регистрация на сайте отправится автоматически.</p>
+    <div id="status" class="status">Ожидаем Tilda...</div>
+    <iframe id="captchaFrame" title="Tilda captcha" hidden></iframe>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const draftId = params.get("draft") || "";
+    const statusNode = document.getElementById("status");
+    const clientNode = document.getElementById("clientText");
+    const frame = document.getElementById("captchaFrame");
+
+    function setStatus(message, kind = "") {
+      statusNode.textContent = message;
+      statusNode.className = `status ${kind}`.trim();
+    }
+
+    async function init() {
+      if (!draftId) {
+        setStatus("Не найдена временная регистрация. Вернитесь в форму и создайте клиента заново.", "error");
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/tilda/signup/captcha?draft=${encodeURIComponent(draftId)}`);
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Не удалось открыть проверку Tilda.");
+
+        const name = payload.contact?.name || "клиент";
+        const email = payload.contact?.email || "";
+        clientNode.textContent = `Регистрация для: ${name}${email ? `, ${email}` : ""}.`;
+        frame.src = payload.captchaUrl;
+        frame.hidden = false;
+        setStatus("Пройдите проверку Tilda в окне ниже.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    window.addEventListener("message", async (event) => {
+      if (!String(event.origin || "").includes("forms.tildacdn.com") &&
+          !String(event.origin || "").includes("forms2.tildacdn.com") &&
+          !String(event.origin || "").includes("forms.tildaapi.")) {
+        return;
+      }
+      if (event.data === "closeiframe") {
+        setStatus("Проверка закрыта. Можно закрыть это окно и попробовать ещё раз.", "error");
+        return;
+      }
+
+      const captchaToken = typeof event.data === "string" ? event.data : JSON.stringify(event.data);
+      if (!captchaToken) return;
+      frame.hidden = true;
+      setStatus("Проверка пройдена, отправляем регистрацию на сайт...");
+
+      try {
+        const response = await fetch("/api/tilda/signup/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ draftId, captchaToken }),
+        });
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error(payload.error || "Tilda не приняла регистрацию.");
+        setStatus("Готово: регистрация на сайте отправлена.", "success");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
