@@ -59,25 +59,30 @@
     if (!table) { if (attempt < 50) setTimeout(() => renderOrders(account, attempt + 1), 100); return; }
     let tbody = table.querySelector("tbody");
     if (!tbody) { tbody = document.createElement("tbody"); table.appendChild(tbody); }
-    const template = tbody.querySelector("tr")?.cloneNode(true) || null;
-    tbody.innerHTML = "";
+    // Keep Tilda's original row in place: it contains the table's native layout.
+    const baseRow = tbody.querySelector("tr:not([data-v2sd-history-generated])");
+    const template = baseRow?.cloneNode(true) || null;
+    tbody.querySelectorAll("tr[data-v2sd-history-generated]").forEach((row) => row.remove());
     const history = buildAccountHistory(account);
     if (!history.length) {
-      const row = template || document.createElement("tr");
-      const cell = row.cells?.[0] || row.insertCell();
-      cell.colSpan = 3;
-      cell.textContent = "Заказов пока нет";
-      while (row.cells.length > 1) row.deleteCell(1);
-      tbody.appendChild(row);
+      const row = baseRow || template || document.createElement("tr");
+      while (row.cells.length < 3) row.insertCell();
+      row.cells[0].textContent = "";
+      row.cells[1].textContent = "Заказов пока нет";
+      row.cells[2].textContent = "";
+      if (!baseRow) tbody.appendChild(row);
       return;
     }
-    history.forEach((order) => {
-      const row = template ? template.cloneNode(true) : document.createElement("tr");
+    history.forEach((order, index) => {
+      const row = index === 0 && baseRow ? baseRow : (template ? template.cloneNode(true) : document.createElement("tr"));
       while (row.cells.length < 3) row.insertCell();
       row.cells[0].textContent = formatDate(order.date);
       row.cells[1].textContent = order.composition || order.title || "";
       row.cells[2].textContent = formatMoney(order.sum);
-      tbody.appendChild(row);
+      if (row !== baseRow) {
+        row.dataset.v2sdHistoryGenerated = "true";
+        tbody.appendChild(row);
+      }
     });
   }
   function buildAccountHistory(account) {
