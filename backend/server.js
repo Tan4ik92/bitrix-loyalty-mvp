@@ -10,6 +10,8 @@ import { buildBirthdayBonusState, buildContactSearch, buildWelcomeBonusState, lo
 const moduleFile = fileURLToPath(import.meta.url);
 const root = path.resolve(path.dirname(moduleFile), "..");
 const frontend = path.join(root, "frontend");
+const siteVideoDir = path.join(root, "site-video");
+const siteVideoTrafficLog = path.join(root, "data", "site-video-traffic.jsonl");
 loadEnv(path.join(root, ".env"));
 
 if (process.env.LEGACY_ENV_FILE) {
@@ -111,11 +113,7 @@ const messengerOrderSources = {
   UC_T7RCF2: "ChatApp - Телеграм - V2SD Сокол",
   UC_NLOT68: "ChatApp - Телеграм - V2SD Белка",
 };
-const messengerOrderDefaults = {
-  categoryId: 1,
-  unpaidStageId: "C1:NEW",
-  paidStageId: "C1:PREPARATION",
-};
+const messengerOrderDefaults = { categoryId: 1, unpaidStageId: "C1:NEW", paidStageId: "C1:PREPARATION" };
 const partnerPromo = {
   entityTypeId: Number(process.env.BITRIX_PARTNER_PROMO_ENTITY_TYPE_ID || 1046),
   codeField: process.env.BITRIX_PARTNER_PROMO_CODE_FIELD || "ufCrm11_1777551423508",
@@ -137,11 +135,6 @@ const partnerPayoutFields = {
   branch: process.env.BITRIX_PARTNER_PAYOUT_BRANCH_FIELD || "ufCrm_9_V2SD_BRANCH",
   managerRemainder: process.env.BITRIX_PARTNER_PAYOUT_MANAGER_REMAINDER_FIELD || "ufCrm9_1791286316223",
 };
-const partnerPayoutReturnAudit = {
-  categoryId: Number(process.env.BITRIX_RETURN_DEAL_CATEGORY_ID || 3),
-  mainOrderField: process.env.BITRIX_RETURN_MAIN_ORDER_FIELD || "ufCrm_1783342704",
-  refundAmountField: process.env.BITRIX_RETURN_AMOUNT_FIELD || "ufCrm_1776772743152",
-};
 const partnerPayoutPartnershipTypes = {
   "97": Number(process.env.BITRIX_PARTNER_PAYOUT_TYPE_EXPERT_ID || 151),
   "99": Number(process.env.BITRIX_PARTNER_PAYOUT_TYPE_AMBASSADOR_ID || 153),
@@ -155,12 +148,12 @@ const partnerPayoutDuplicateCheck = {
   windowMs: Number(process.env.PARTNER_PAYOUT_DUPLICATE_WINDOW_MS || 60 * 1000),
   limit: Number(process.env.PARTNER_PAYOUT_DUPLICATE_CHECK_LIMIT || 100),
 };
-const activePartnerPayoutCreations = new Set();
 const partnerPayoutAutomation = {
   enabled: process.env.PARTNER_PAYOUT_AUTOMATION_ENABLED !== "0",
   entityTypeId: Number(process.env.BITRIX_PARTNER_PAYOUT_ENTITY_TYPE_ID || 1042),
   newStageId: String(process.env.BITRIX_PARTNER_PAYOUT_NEW_STAGE_ID || "DT1042_17:NEW").trim(),
   paymentStageId: String(process.env.BITRIX_PARTNER_PAYOUT_PAYMENT_STAGE_ID || "DT1042_17:PREPARATION").trim(),
+  paidStageId: String(process.env.BITRIX_PARTNER_PAYOUT_PAID_STAGE_ID || "DT1042_17:SUCCESS").trim(),
   intervalMs: Number(process.env.PARTNER_PAYOUT_AUTOMATION_INTERVAL_MS || 60 * 60 * 1000),
   listLimit: Number(process.env.PARTNER_PAYOUT_AUTOMATION_LIST_LIMIT || 500),
   batchDelayMs: Number(process.env.PARTNER_PAYOUT_AUTOMATION_BATCH_DELAY_MS || 250),
@@ -240,6 +233,10 @@ const server = http.createServer(async (req, res) => {
       return res.end();
     }
 
+    if (url.pathname === "/integration" || url.pathname.startsWith("/integration/")) {
+      return proxyIntegration(req, res, url);
+    }
+
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/manager")) {
       return redirect(res, managerFormPath);
     }
@@ -251,8 +248,14 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    if (isProtectedPartnerPayoutRequest(req.method, url.pathname) && !isAuthorizedPartnerPayoutRequest(req)) {
+      return forbidden(res);
+    }
+
     if (isManagerFormRequest(req.method, url.pathname) && !isAuthorizedManagerRequest(req)) {
-      return unauthorized(res);
+      const authorizedEmbeddedAsset = isPartnerPayoutDashboardAsset(req.method, url.pathname) &&
+        isAuthorizedPartnerPayoutRequest(req);
+      if (!authorizedEmbeddedAsset) return unauthorized(res);
     }
 
     if (req.method === "GET" && url.pathname === "/api/employees") {
@@ -306,6 +309,12 @@ const server = http.createServer(async (req, res) => {
         enrich: url.searchParams.get("enrich") === "1",
       });
       return json(res, 200, report);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/partner-payouts/mark-paid") {
+      if (!bitrixApiKey) return json(res, 503, { error: "VIBECODE_API_KEY is not configured." });
+      const result = await markPartnerPayoutsPaid(await readJson(req));
+      return json(res, result.errors.length ? 207 : 200, result);
     }
 
     if (req.method === "GET" && url.pathname === "/api/birthday-bonuses/run") {
@@ -380,9 +389,14 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/account/profile") {
       if (!bitrixApiKey) return json(res, 503, { error: "VIBECODE_API_KEY is not configured." });
+      const contactId = clean(url.searchParams.get("contactId") || url.searchParams.get("id"));
+      const email = normalizeEmail(url.searchParams.get("email"));
+      if (!contactId && !email) {
+        return json(res, 400, { error: "Для личного кабинета нужен email или Bitrix contactId." });
+      }
       const account = await loadAccountProfile({
-        contactId: clean(url.searchParams.get("contactId") || url.searchParams.get("id")),
-        email: normalizeEmail(url.searchParams.get("email")),
+        contactId,
+        email,
         limit: Number(url.searchParams.get("limit") || 50),
         offset: Number(url.searchParams.get("offset") || 0),
         includeOrders: url.searchParams.get("includeOrders") !== "false",
@@ -533,6 +547,9 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, result);
     }
 
+    if ((req.method === "GET" || req.method === "HEAD") && url.pathname.startsWith("/site-video/")) {
+      return serveSiteVideo(req, res, url.pathname);
+    }
     if (req.method !== "GET" && req.method !== "HEAD") return json(res, 405, { error: "ÐœÐµÑ‚Ð¾Ð´ Ð½Ðµ Ð¿Ð¾Ð´Ð´ÐµÑ€Ð¶Ð¸Ð²Ð°ÐµÑ‚ÑÑ." });
     return serveStatic(res, url.pathname);
   } catch (error) {
@@ -553,15 +570,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === moduleFile) {
     startBirthdayBonusAutomationLoop();
     if (process.env.DIGIFT_CERTIFICATE_IMPORT_ENABLED === "1") {
       try {
-        const api = createDigiftApi({
-          mailWebhookUrl: process.env.DIGIFT_BITRIX_MAIL_WEBHOOK_URL,
-          crmBaseUrl: bitrixBaseUrl,
-          crmApiKey: bitrixApiKey,
-        });
+        const api = createDigiftApi({ mailWebhookUrl: process.env.DIGIFT_BITRIX_MAIL_WEBHOOK_URL,
+          crmBaseUrl: bitrixBaseUrl, crmApiKey: bitrixApiKey });
         startDigiftMailImportLoop(api);
-      } catch (error) {
-        console.error("Digift certificate import not started:", error.message);
-      }
+      } catch (error) { console.error("Digift certificate import not started:", error.message); }
     }
   });
 }
@@ -990,21 +1002,22 @@ async function buildPartnerPayoutReport({ month = "", type = "", stage = "", dea
     return true;
   });
 
-  // The partner card is the source of truth for partnership type. This also
-  // makes newly added enumeration values visible without a code change.
+  // The linked partner card is the source of truth for partnership type.
+  // New enumeration values therefore appear without a code update.
   await enrichPartnerPayoutRowsWithPartners(prefiltered, typeMetadata.partnerLabels);
   const filtered = prefiltered.filter((row) => {
     if (!normalizedType) return true;
     return normalizeReportFilter(row.partnershipTypeLabel) === normalizedType || String(row.partnershipTypeId) === type;
   });
 
-  // Deal stages are part of the report itself, so load them on every request.
+  // Deal stages are part of the report and are fetched in batches.
   await enrichPartnerPayoutRowsWithDeals(filtered);
-  await enrichPartnerPayoutRowsWithReturns(filtered);
   const options = buildPartnerPayoutReportOptions(rows, filtered, typeMetadata.partnerOptions.map((option) => option.label));
   const reportRows = filtered.filter((row) => {
     if (normalizedDealStage && !matchesPartnerPayoutDealStage(row, dealStage)) return false;
-    if (!matchesPartnerPayoutBranch(row, normalizedBranch)) return false;
+    if (normalizedBranch && (normalizedBranch === "unassigned"
+      ? Boolean(row.branch)
+      : normalizeReportFilter(row.branch) !== normalizedBranch)) return false;
     return true;
   });
   const groups = buildPartnerPayoutGroups(reportRows);
@@ -1036,7 +1049,7 @@ async function loadPartnerPayoutReportItems({ limit = 500 } = {}) {
     .sort((left, right) => `${left.date}|${left.code}|${left.id}`.localeCompare(`${right.date}|${right.code}|${right.id}`));
 }
 
-export function mapPartnerPayoutReportItem(item) {
+function mapPartnerPayoutReportItem(item) {
   const id = String(item.id ?? item.ID ?? "");
   const orderAmount = parseMoneyAmount(item[partnerPayoutFields.orderAmount]);
   const rewardPercent = numberOrZero(item[partnerPayoutFields.rewardPercent]);
@@ -1049,6 +1062,7 @@ export function mapPartnerPayoutReportItem(item) {
   const contactId = Number(item.contactId || item.CONTACT_ID || 0) || null;
   const partnershipTypeId = clean(item[partnerPayoutFields.partnershipType]);
   const paid = clean(item[partnerPayoutFields.paid]);
+  const isPaid = isPartnerPayoutPaid(paid) || normalizeStageId(stageId) === normalizeStageId(partnerPayoutAutomation.paidStageId);
   const title = clean(item.title || item.TITLE || item.name || item.NAME);
   const comment = clean(item[partnerPayoutFields.comment]);
   const branchValue = normalizeReportFilter(item[partnerPayoutFields.branch]);
@@ -1074,7 +1088,6 @@ export function mapPartnerPayoutReportItem(item) {
     dealStageId: "",
     dealStageLabel: "",
     dealStageSemanticId: "",
-    returnDeals: [],
     partnershipTypeId,
     partnershipTypeLabel: getPartnerPayoutTypeLabel(partnershipTypeId),
     stageId,
@@ -1085,35 +1098,73 @@ export function mapPartnerPayoutReportItem(item) {
     payoutAmount: payoutAmount || roundMoney(orderAmount * rewardPercent / 100),
     managerRemainder,
     paid,
-    paidLabel: isPartnerPayoutPaid(paid) ? "\u0414\u0430" : "\u041d\u0435\u0442",
-    isPaid: isPartnerPayoutPaid(paid),
+    paidLabel: isPaid ? "\u0414\u0430" : "\u041d\u0435\u0442",
+    isPaid,
     comment,
     cancelReason: clean(item[partnerPayoutFields.cancelReason]),
   };
 }
 
+async function markPartnerPayoutsPaid(payload = {}) {
+  const ids = unique((Array.isArray(payload.ids) ? payload.ids : [])
+    .map((value) => String(value || "").trim())
+    .filter((value) => /^\d+$/.test(value)))
+    .slice(0, 500);
+  if (!ids.length) throw Object.assign(new Error("Выберите хотя бы одну выплату."), { status: 400, publicMessage: "Выберите хотя бы одну выплату." });
+
+  const existing = new Map((await loadPartnerPayoutReportItems({ limit: 5000 })).map((row) => [row.id, row]));
+  const moved = [];
+  const skipped = [];
+  const errors = [];
+  await mapWithConcurrency(ids, 4, async (id) => {
+    const row = existing.get(id);
+    if (!row) return skipped.push({ id, reason: "not_found" });
+    if (row.isPaid) return skipped.push({ id, reason: "already_paid" });
+    if (normalizeStageId(row.stageId) === "DT1042_17:FAIL") return skipped.push({ id, reason: "rejected" });
+    try {
+      await bitrixRequest(`/v1/items/${partnerPayoutAutomation.entityTypeId}/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: JSON.stringify({ stageId: partnerPayoutAutomation.paidStageId }),
+      });
+      moved.push(id);
+    } catch (error) {
+      errors.push({ id, error: error.message });
+    }
+  });
+  return { ok: errors.length === 0, requested: ids.length, moved, skipped, errors };
+}
+
 async function enrichPartnerPayoutRowsWithPartners(rows, typeLabels = new Map()) {
-  const partnerIds = unique(rows.map((row) => row.partnerParentId).filter(Boolean));
-  const partnersById = new Map();
-  await mapWithConcurrency(partnerIds, 8, async (partnerId) => {
+  let partners = [];
+  try {
+    partners = await loadPartnerPromos();
+  } catch (error) {
+    console.warn(`Partner payout report: failed to load partner cards: ${error.message}`);
+  }
+  const partnersById = new Map(partners.map((partner) => [String(partner.id), partner]));
+  const partnersByCode = new Map(partners.map((partner) => [normalizePromoCode(partner.code), partner]));
+  const unresolvedIds = unique(rows
+    .filter((row) => row.partnerParentId && !partnersById.has(String(row.partnerParentId)))
+    .map((row) => row.partnerParentId));
+  await mapWithConcurrency(unresolvedIds, 4, async (partnerId) => {
     try {
       const partner = await bitrixRequest(`/v1/items/${partnerPromo.entityTypeId}/${encodeURIComponent(partnerId)}`);
       partnersById.set(String(partnerId), mapPartnerPayoutPartnerCard(partner, partnerId));
     } catch (error) {
-      console.warn(`Partner payout report: failed to load partner card ${partnerId}: ${error.message}`);
+      console.warn(`Partner payout report: failed to load archived partner card ${partnerId}: ${error.message}`);
     }
   });
   for (const row of rows) {
-    const partner = partnersById.get(String(row.partnerParentId));
+    const partner = partnersById.get(String(row.partnerParentId)) || partnersByCode.get(normalizePromoCode(row.code));
     if (!partner) continue;
-    row.partnerName = partner.name || row.partnerName;
-    row.partnerUrl = partner.url || row.partnerUrl;
+    row.partnerName = partner.name || partner.partnerName || row.partnerName;
+    row.partnerUrl = partner.url || (partner.id ? buildSmartItemUrl(partnerPromo.entityTypeId, partner.id) : "") || row.partnerUrl;
     row.partnerCode = partner.code || row.code;
     row.partnerStageId = partner.stageId;
-    row.partnerStageLabel = partner.stageLabel;
+    row.partnerStageLabel = partner.stageLabel || partner.status || partner.stageId || "";
     if (partner.partnershipTypeId) {
       row.partnershipTypeId = partner.partnershipTypeId;
-      row.partnershipTypeLabel = typeLabels.get(String(partner.partnershipTypeId)) || partner.partnershipTypeLabel || row.partnershipTypeLabel;
+      row.partnershipTypeLabel = typeLabels.get(String(partner.partnershipTypeId)) || row.partnershipTypeLabel;
     }
   }
 }
@@ -1127,7 +1178,6 @@ function mapPartnerPayoutPartnerCard(item, fallbackId = "") {
     name: title,
     code: normalizePromoCode(item?.[partnerPromo.codeField]),
     partnershipTypeId: clean(item?.[partnerPromo.partnershipTypeField]),
-    partnershipTypeLabel: "",
     stageId,
     stageLabel: stageId,
     url: id ? buildSmartItemUrl(partnerPromo.entityTypeId, id) : "",
@@ -1157,7 +1207,6 @@ async function enrichPartnerPayoutRowsWithDeals(rows) {
       console.warn(`Partner payout report: failed to load deals ${ids.join(",")}: ${error.message}`);
     }
   });
-
   const stageLabels = await loadPartnerPayoutDealStageLabels([...dealsById.values()]);
   for (const row of rows) {
     const deal = dealsById.get(String(row.dealId));
@@ -1189,63 +1238,12 @@ async function loadPartnerPayoutDealStageLabels(deals) {
   return labels;
 }
 
-async function enrichPartnerPayoutRowsWithReturns(rows) {
-  const deliveredRows = rows.filter(isDeliveredPartnerPayoutDeal);
-  const deliveredDealIds = new Set(deliveredRows.map((row) => String(row.dealId)).filter(Boolean));
-  if (!deliveredDealIds.size) return;
-  try {
-    const raw = await bitrixRequest("/v1/deals/search", {
-      method: "POST",
-      body: JSON.stringify({
-        filter: { categoryId: partnerPayoutReturnAudit.categoryId },
-        select: [
-          "id", "title", "stageId", "stageSemanticId", "categoryId", "amount",
-          partnerPayoutReturnAudit.mainOrderField,
-          partnerPayoutReturnAudit.refundAmountField,
-        ],
-        sort: { id: "DESC" },
-        limit: 500,
-      }),
-    });
-    const returnDeals = asArray(raw)
-      .map(mapPartnerPayoutReturnDeal)
-      .filter((deal) => deal.id && deliveredDealIds.has(String(deal.mainOrderId)));
-    const stageLabels = await loadPartnerPayoutDealStageLabels(returnDeals);
-    const returnsByOrderId = new Map();
-    for (const deal of returnDeals) {
-      deal.stageLabel = stageLabels.get(normalizeStageId(deal.stageId)) || deal.stageLabel;
-      const key = String(deal.mainOrderId);
-      if (!returnsByOrderId.has(key)) returnsByOrderId.set(key, []);
-      returnsByOrderId.get(key).push(deal);
-    }
-    for (const row of deliveredRows) row.returnDeals = returnsByOrderId.get(String(row.dealId)) || [];
-  } catch (error) {
-    console.warn(`Partner payout report: failed to load linked returns: ${error.message}`);
-  }
-}
-
-export function isDeliveredPartnerPayoutDeal(row) {
-  const stageLabel = normalizeReportFilter(row?.dealStageLabel);
-  return normalizeStageId(row?.dealStageId) === "C1:WON" ||
-    (stageLabel.includes("доставлен") && stageLabel.includes("вручен"));
-}
-
-export function mapPartnerPayoutReturnDeal(deal) {
-  const mapped = mapPartnerPayoutDeal(deal);
-  return {
-    ...mapped,
-    mainOrderId: Number(deal?.[partnerPayoutReturnAudit.mainOrderField] || 0) || null,
-    amount: parseMoneyAmount(deal?.[partnerPayoutReturnAudit.refundAmountField] ?? deal?.amount ?? deal?.OPPORTUNITY),
-    url: mapped.id ? buildDealUrl(mapped.id) : "",
-  };
-}
-
-export function getDealStageEntityId(categoryId) {
+function getDealStageEntityId(categoryId) {
   const normalized = Number(categoryId) || 0;
   return normalized > 0 ? `DEAL_STAGE_${normalized}` : "DEAL_STAGE";
 }
 
-export function mapPartnerPayoutDeal(deal, fallbackId = "") {
+function mapPartnerPayoutDeal(deal, fallbackId = "") {
   const id = deal?.id || deal?.ID || fallbackId;
   const stageId = clean(deal?.stageId || deal?.STAGE_ID || "");
   const stageName = clean(deal?.stageName || deal?.STAGE_NAME || "");
@@ -1282,14 +1280,7 @@ function getDealStageFallbackLabel(stageId) {
   return stageId;
 }
 
-export function matchesPartnerPayoutBranch(row, branch) {
-  const selected = normalizeReportFilter(branch);
-  if (!selected) return true;
-  if (selected === "unassigned") return !row.branch;
-  return normalizeReportFilter(row.branch) === selected;
-}
-
-export function buildPartnerPayoutGroups(rows) {
+function buildPartnerPayoutGroups(rows) {
   const byCode = new Map();
   for (const row of rows) {
     const key = row.code || `CARD-${row.partnerParentId || row.contactId || row.id}`;
@@ -1323,7 +1314,7 @@ export function buildPartnerPayoutGroups(rows) {
     .sort((left, right) => right.totals.payoutAmount - left.totals.payoutAmount || left.key.localeCompare(right.key, "ru"));
 }
 
-export function sumPartnerPayoutRows(rows) {
+function sumPartnerPayoutRows(rows) {
   return rows.reduce((totals, row) => {
     totals.orderAmount = roundMoney(totals.orderAmount + row.orderAmount);
     totals.payoutAmount = roundMoney(totals.payoutAmount + row.payoutAmount);
@@ -1343,7 +1334,7 @@ function buildPartnerPayoutReportOptions(rows, dealRows = rows, configuredTypes 
   };
 }
 
-export function extractEnumerationOptions(field) {
+function extractEnumerationOptions(field) {
   const items = Array.isArray(field?.items) ? field.items : Array.isArray(field?.ITEMS) ? field.ITEMS : [];
   return items
     .map((item) => ({
@@ -1375,7 +1366,6 @@ async function loadPartnerPayoutTypeMetadata() {
     const payoutOptions = extractEnumerationOptions(findSmartProcessField(payoutFields, partnerPayoutFields.partnershipType));
     const value = {
       partnerOptions,
-      payoutOptions,
       partnerLabels: new Map(partnerOptions.map((option) => [String(option.id), option.label])),
       payoutLabels: new Map(payoutOptions.map((option) => [String(option.id), option.label])),
     };
@@ -1391,14 +1381,13 @@ async function loadPartnerPayoutTypeMetadata() {
     ];
     return {
       partnerOptions,
-      payoutOptions: [],
       partnerLabels: new Map(partnerOptions.map((option) => [option.id, option.label])),
       payoutLabels: new Map(),
     };
   }
 }
 
-export function matchesPartnerPayoutDealStage(row, value) {
+function matchesPartnerPayoutDealStage(row, value) {
   const expected = normalizeReportFilter(value);
   if (!expected) return true;
   return normalizeReportFilter(row?.dealStageLabel) === expected ||
@@ -2003,7 +1992,6 @@ async function verifyTildaMemberRequest(req, expectedEmail) {
   try {
     const response = await fetch(`${tildaMembersApiBase}/api/getprofile/`, {
       method: "POST",
-      // Tilda member tokens are checked against the originating browser User-Agent.
       headers: { "Content-Type": "application/json; charset=UTF-8", Accept: "application/json", Origin: "https://v2sportdress.ru", Referer: "https://v2sportdress.ru/", "User-Agent": clean(req.headers["user-agent"]) },
       body: JSON.stringify({ projectid: projectId, token, tzoffset: 0 }),
       signal: AbortSignal.timeout(12000),
@@ -2323,10 +2311,7 @@ async function createBitrixOrderCore(order) {
       throw publicError(409, `Доступно только ${formatOrderNumber(availableBonuses)} бонусов.`);
     }
   }
-  const productRows = await buildDealProductRows(
-    order.items,
-    order.totals.discountAmount + order.totals.bonusUsed + (order.totals.certificateUsed || 0),
-  );
+  const productRows = await buildDealProductRows(order.items, order.totals.discountAmount + order.totals.bonusUsed + (order.totals.certificateUsed || 0));
   const duplicate = await findDuplicateOfflineOrder(order, productRows, branch);
   if (duplicate) {
     const error = new Error(`DUPLICATE_OFFLINE_ORDER:${duplicate.id}`);
@@ -2447,7 +2432,7 @@ async function hasAnyPaidDeal(contactId) {
     method: "POST",
     body: JSON.stringify({
       filter: { contactId: Number(contactId) || contactId },
-      select: ["id", "stageId", "stageName", "stageSemanticId", dealOrderFields.paymentStatus],
+      select: ["id", "stageId", "stageSemanticId", dealOrderFields.paymentStatus],
       sort: { id: "DESC" },
       limit: 1,
     }),
@@ -2523,14 +2508,10 @@ async function findDuplicateOfflineOrder(order, productRows, branch) {
     contactId: Number(order.contactId) || order.contactId,
     categoryId: isPreorder
       ? preorderDealDefaults.categoryId
-      : isMessengerOrder
-        ? messengerOrderDefaults.categoryId
-        : (offlineDuplicateCheck.categoryId || dealDefaults.categoryId),
+      : isMessengerOrder ? messengerOrderDefaults.categoryId : (offlineDuplicateCheck.categoryId || dealDefaults.categoryId),
   };
   if (isPreorder) filter.stageId = preorderDealDefaults.stageId;
-  else if (isMessengerOrder) {
-    filter.stageId = order.paymentStatus === "paid" ? messengerOrderDefaults.paidStageId : messengerOrderDefaults.unpaidStageId;
-  }
+  else if (isMessengerOrder) filter.stageId = order.paymentStatus === "paid" ? messengerOrderDefaults.paidStageId : messengerOrderDefaults.unpaidStageId;
   else if (offlineDuplicateCheck.stageId) filter.stageId = offlineDuplicateCheck.stageId;
 
   const raw = await bitrixRequest("/v1/deals/search", {
@@ -2538,7 +2519,7 @@ async function findDuplicateOfflineOrder(order, productRows, branch) {
     body: JSON.stringify({
       filter,
       select: [
-        "id", "title", "amount", "opportunity", "currency", "stageId", "stageName",
+        "id", "title", "amount", "opportunity", "currency", "stageId", 
         "stageSemanticId", "categoryId", "contactId",
         dealOrderFields.operation, dealOrderFields.deliveryPoint, dealOrderFields.warehouse,
       ],
@@ -2689,7 +2670,6 @@ export async function buildDealProductRows(items, orderDiscount = 0) {
       productName: item.name,
       price: item.price,
       quantity: item.quantity,
-      discountEligible: item.discountEligible !== false,
       taxRate: 0,
       taxIncluded: "N",
     };
@@ -2697,7 +2677,6 @@ export async function buildDealProductRows(items, orderDiscount = 0) {
     rows.push(row);
   }
   applyOrderDiscountToProductRows(rows, orderDiscount);
-  rows.forEach((row) => delete row.discountEligible);
   return rows;
 }
 
@@ -2741,7 +2720,7 @@ export function applyOrderDiscountToProductRows(rows, orderDiscount) {
       unitPrice: roundMoney(row.price),
       capacity: roundMoney(Number(row.price || 0) * Number(row.quantity || 1)),
     }))
-    .filter((entry) => entry.capacity > 0 && entry.row.discountEligible !== false)
+    .filter((entry) => entry.capacity > 0)
     .sort((left, right) => right.capacity - left.capacity || left.index - right.index);
 
   for (const entry of sorted) {
@@ -2791,18 +2770,7 @@ function getPickupBranch(branchCode) {
   return safePickupBranches[clean(branchCode).toLowerCase()] || safePickupBranches.sokol;
 }
 
-const NON_DISCOUNTABLE_ORDER_PRODUCT_IDS = new Set([
-  "2p8AQPJFhkOdzuQ5QDfyY3",
-  "jjBIe389hY-R62VLIA4nw0",
-]);
-
-function isOrderItemDiscountEligible(item = {}) {
-  if (item.discountEligible === false || item.bonusEligible === false || item.v2sdGiftPackaging) return false;
-  const externalId = clean(item.xmlId || item.externalId || item.sku || item.SKU);
-  return !NON_DISCOUNTABLE_ORDER_PRODUCT_IDS.has(externalId);
-}
-
-export function normalizeOrderPayload(payload = {}) {
+function normalizeOrderPayload(payload = {}) {
   const currency = normalizeCurrency(payload.currency);
   const items = asArray(payload.items)
     .map((item) => {
@@ -2818,23 +2786,17 @@ export function normalizeOrderPayload(payload = {}) {
         quantity,
         price,
         sum: roundMoney(quantity * price),
-        discountEligible: isOrderItemDiscountEligible(item),
       };
     })
     .filter((item) => item.name && item.quantity > 0);
 
   const subtotal = roundMoney(items.reduce((sum, item) => sum + item.sum, 0));
-  const discountEligibleSubtotal = roundMoney(items.reduce((sum, item) => (
-    sum + (item.discountEligible ? item.sum : 0)
-  ), 0));
   const requestedKind = clean(payload.kind || payload.orderKind || payload.type).toLowerCase();
   const kind = requestedKind === "preorder" ? "preorder" : requestedKind === "messenger" ? "messenger" : "order";
   const sourceId = kind === "messenger" ? clean(payload.sourceId) : "";
-  if (kind === "messenger" && !Object.hasOwn(messengerOrderSources, sourceId)) {
-    throw publicError(400, "Выберите источник заказа из списка Bitrix24.");
-  }
+  if (kind === "messenger" && !Object.hasOwn(messengerOrderSources, sourceId)) throw publicError(400, "Выберите источник заказа из списка Bitrix24.");
   const paymentStatus = kind === "messenger" && clean(payload.paymentStatus).toLowerCase() === "paid" ? "paid" : "unpaid";
-  const promo = normalizeOrderPromo(payload.promo || payload.promocode || payload.promoCode, discountEligibleSubtotal);
+  const promo = normalizeOrderPromo(payload.promo || payload.promocode || payload.promoCode, subtotal);
   const certificates = [payload.certificate, payload.certificate2, ...asArray(payload.certificates)]
     .map(normalizeOrderCertificate)
     .filter(Boolean);
@@ -2856,10 +2818,10 @@ export function normalizeOrderPayload(payload = {}) {
     rawPromoDiscountPercent,
   );
   const loyaltyDiscountAmount = roundMoney(
-    discountEligibleSubtotal * loyaltyDiscountPercent / 100,
+    subtotal * loyaltyDiscountPercent / 100,
   );
   const promoDiscountAmount = roundMoney(
-    discountEligibleSubtotal * promoDiscountPercent / 100,
+    subtotal * promoDiscountPercent / 100,
   );
   if (promo) {
     promo.discountPercent = promoDiscountPercent;
@@ -2871,10 +2833,6 @@ export function normalizeOrderPayload(payload = {}) {
     throw publicError(400, "Можно использовать только 300, 500 или 800 бонусов.");
   }
   const certificateUsed = roundMoney(certificates.reduce((sum, item) => sum + Math.max(0, item.amount || 0), 0));
-  const eligibleAfterDiscount = Math.max(0, roundMoney(discountEligibleSubtotal - discountAmount));
-  if (bonusUsed > eligibleAfterDiscount) {
-    throw publicError(400, "Бонусы нельзя списывать на подарочную упаковку.");
-  }
   const payTotal = roundMoney(Math.max(0, subtotal - discountAmount - bonusUsed - certificateUsed));
 
   return {
@@ -2893,8 +2851,6 @@ export function normalizeOrderPayload(payload = {}) {
     certificates,
     totals: {
       subtotal,
-      discountEligibleSubtotal,
-      nonDiscountableSubtotal: roundMoney(subtotal - discountEligibleSubtotal),
       discountPercent,
       discountAmount,
       loyaltyDiscountPercent,
@@ -3019,9 +2975,8 @@ async function withCertificateLock(code, work) {
   const queued = previous.then(() => current);
   certificateLocks.set(key, queued);
   await previous;
-  try {
-    return await work();
-  } finally {
+  try { return await work(); }
+  finally {
     release();
     if (certificateLocks.get(key) === queued) certificateLocks.delete(key);
   }
@@ -3095,7 +3050,6 @@ async function createOfflinePartnerPayout(payload = {}) {
     throw publicHttpError(400, "Ответственный сотрудник не относится к выбранному филиалу.");
   }
 
-  return withPartnerPayoutCreationLock({ code, orderAmount }, async () => {
   const promo = await findPartnerPromoWithOptions(code, { force: true });
   if (!promo) {
     throw publicHttpError(404, "\u0422\u0430\u043a\u043e\u0439 \u043f\u0440\u043e\u043c\u043e\u043a\u043e\u0434 \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d \u0432 Bitrix24.");
@@ -3189,27 +3143,6 @@ async function createOfflinePartnerPayout(payload = {}) {
       partnershipTypeId,
     },
   };
-  });
-}
-
-export function buildPartnerPayoutCreationKey(code, orderAmount) {
-  return `${normalizePromoCode(code)}|${roundMoney(orderAmount).toFixed(2)}`;
-}
-
-export async function withPartnerPayoutCreationLock({ code, orderAmount }, worker) {
-  const key = buildPartnerPayoutCreationKey(code, orderAmount);
-  if (activePartnerPayoutCreations.has(key)) {
-    throw publicHttpError(
-      409,
-      "\u0422\u0430\u043a\u0430\u044f \u0432\u044b\u043f\u043b\u0430\u0442\u0430 \u0443\u0436\u0435 \u0441\u043e\u0437\u0434\u0430\u0435\u0442\u0441\u044f. \u0414\u043e\u0436\u0434\u0438\u0442\u0435\u0441\u044c \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f \u043f\u0435\u0440\u0432\u043e\u0433\u043e \u0437\u0430\u043f\u0440\u043e\u0441\u0430.",
-    );
-  }
-  activePartnerPayoutCreations.add(key);
-  try {
-    return await worker();
-  } finally {
-    activePartnerPayoutCreations.delete(key);
-  }
 }
 
 async function findRecentDuplicatePartnerPayout({ promo, code, orderAmount }) {
@@ -3916,6 +3849,92 @@ function summarizeTildaResponse(value) {
   };
 }
 
+function proxyIntegration(req, res, url) {
+  const targetPath = url.pathname.slice("/integration".length) || "/";
+  const upstream = http.request({
+    hostname: "127.0.0.1",
+    port: 3101,
+    method: req.method,
+    path: targetPath + url.search,
+    headers: { ...req.headers, host: "127.0.0.1:3101" },
+    timeout: 30000,
+  }, response => {
+    res.writeHead(response.statusCode || 502, response.headers);
+    response.pipe(res);
+  });
+  upstream.on("timeout", () => upstream.destroy(new Error("Integration timeout")));
+  upstream.on("error", error => {
+    console.error("Integration proxy failed", error);
+    if (!res.headersSent) json(res, 502, { error: "Integration unavailable" });
+    else res.destroy(error);
+  });
+  req.pipe(upstream);
+}
+
+function serveSiteVideo(req, res, pathname) {
+  const name = pathname.slice("/site-video/".length);
+  if (!/^IMG_\d{4}\.mp4$/.test(name)) return json(res, 404, { error: "Video not found" });
+  const file = path.join(siteVideoDir, name);
+  if (!fs.existsSync(file) || !fs.statSync(file).isFile()) return json(res, 404, { error: "Video not found" });
+  const size = fs.statSync(file).size;
+  let start = 0;
+  let end = size - 1;
+  let status = 200;
+  const range = req.headers.range;
+  if (range) {
+    const match = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!match || (!match[1] && !match[2])) {
+      res.writeHead(416, { "Content-Range": `bytes */${size}`, "Accept-Ranges": "bytes" });
+      return res.end();
+    }
+    if (!match[1]) {
+      const suffix = Number(match[2]);
+      if (!Number.isSafeInteger(suffix) || suffix < 1) {
+        res.writeHead(416, { "Content-Range": `bytes */${size}`, "Accept-Ranges": "bytes" });
+        return res.end();
+      }
+      start = Math.max(0, size - suffix);
+    } else {
+      start = Number(match[1]);
+      if (match[2]) end = Number(match[2]);
+    }
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start >= size || end < start) {
+      res.writeHead(416, { "Content-Range": `bytes */${size}`, "Accept-Ranges": "bytes" });
+      return res.end();
+    }
+    end = Math.min(end, size - 1);
+    status = 206;
+  }
+  const headers = {
+    "Content-Type": "video/mp4",
+    "Content-Length": end - start + 1,
+    "Accept-Ranges": "bytes",
+    "Cache-Control": "public, max-age=86400",
+    "Access-Control-Allow-Origin": "*",
+  };
+  if (status === 206) headers["Content-Range"] = `bytes ${start}-${end}/${size}`;
+  res.writeHead(status, headers);
+  if (req.method === "HEAD") return res.end();
+  let streamedBytes = 0;
+  let logged = false;
+  const log = (completed) => {
+    if (logged) return;
+    logged = true;
+    const record = { at: new Date().toISOString(), file: name, status, range: range || null,
+      streamedBytes, completed };
+    fs.appendFile(siteVideoTrafficLog, `${JSON.stringify(record)}\n`, error => {
+      if (error) console.error("Video traffic log failed", error);
+    });
+  };
+  res.once("finish", () => log(true));
+  res.once("close", () => log(false));
+  const stream = fs.createReadStream(file, { start, end });
+  stream.on("data", chunk => { streamedBytes += chunk.length; });
+  stream.on("error", error => { console.error("Video stream failed", error); res.destroy(error); });
+  res.on("close", () => stream.destroy());
+  stream.pipe(res);
+}
+
 function serveStatic(res, pathname) {
   const staticAliases = {
     [managerFormPath]: "/index.html",
@@ -3948,6 +3967,7 @@ function isManagerFormRequest(method, pathname) {
     "/api/certificates/lookup",
     "/api/partner-payouts/offline",
     "/api/partner-payouts/report",
+    "/api/partner-payouts/mark-paid",
     "/api/contacts/search",
     "/api/contacts",
     "/api/products",
@@ -3970,6 +3990,31 @@ function isAuthorizedManagerRequest(req) {
   return constantTimeEqual(user, managerFormUser) && constantTimeEqual(password, managerFormPassword);
 }
 
+function isProtectedPartnerPayoutRequest(method, pathname) {
+  return (method === "GET" && (pathname === "/partner-payouts-dashboard" ||
+    pathname === "/partner-payouts-dashboard.html" ||
+    pathname === "/api/partner-payouts/report")) ||
+    (method === "POST" && pathname === "/api/partner-payouts/mark-paid");
+}
+
+function isPartnerPayoutDashboardAsset(method, pathname) {
+  if (method === "POST" && pathname === "/api/partner-payouts/mark-paid") return true;
+  if (method !== "GET") return false;
+  return [
+    "/partner-payouts-dashboard",
+    "/partner-payouts-dashboard.html",
+    "/partner-payouts-dashboard.js",
+    "/styles.css",
+    "/api/partner-payouts/report",
+  ].includes(pathname);
+}
+
+function isAuthorizedPartnerPayoutRequest(req) {
+  const userId = String(req.headers["x-vibe-user-id"] || "").trim();
+  const role = String(req.headers["x-vibe-user-role"] || "").trim().toUpperCase();
+  return /^\d+$/.test(userId) && ["ADMIN", "MEMBER"].includes(role);
+}
+
 function constantTimeEqual(left, right) {
   const leftBuffer = Buffer.from(String(left));
   const rightBuffer = Buffer.from(String(right));
@@ -3984,6 +4029,10 @@ function unauthorized(res) {
     "WWW-Authenticate": 'Basic realm="V2SD managers", charset="UTF-8"',
   });
   res.end("Authentication required.");
+}
+
+function forbidden(res) {
+  return json(res, 403, { error: "Доступ к отчету выплат не разрешен." });
 }
 
 function redirect(res, location) {
@@ -4039,4 +4088,3 @@ function friendlyError(error) {
   if (message.includes("401") || message.includes("403")) return "Bitrix24 Ð¾Ñ‚ÐºÐ»Ð¾Ð½Ð¸Ð» API-ÐºÐ»ÑŽÑ‡.";
   return "ÐÐµ ÑƒÐ´Ð°Ð»Ð¾ÑÑŒ Ð¿Ð¾Ð»ÑƒÑ‡Ð¸Ñ‚ÑŒ Ð´Ð°Ð½Ð½Ñ‹Ðµ ÐºÐ¾Ð½Ñ‚Ð°ÐºÑ‚Ð° Ð¸Ð· Bitrix24.";
 }
-

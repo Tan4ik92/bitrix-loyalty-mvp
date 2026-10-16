@@ -185,14 +185,28 @@
 
           <article class="details-card">
             <h3>Информация о клиенте</h3>
-            <dl class="details-list">
-              <div><dt>Заказов</dt><dd id="findOrdersCount">—</dd></div>
-              <div><dt>Начислено бонусов</dt><dd id="findAccruedTotal">—</dd></div>
-              <div><dt>Списано бонусов</dt><dd id="findSpentTotal">—</dd></div>
-              <div><dt>Последний заказ</dt><dd id="findLastOrder">—</dd></div>
-              <div><dt>Дата заказа</dt><dd id="findLastOrderDate">—</dd></div>
-              <div><dt>Сумма заказа</dt><dd id="findLastOrderSum">—</dd></div>
-            </dl>
+            <section class="client-info-section">
+              <h4>Покупки</h4>
+              <dl class="details-list">
+                <div><dt>Заказов</dt><dd id="findOrdersCount">—</dd></div>
+                <div><dt>Сумма покупок</dt><dd id="findPurchaseSum">—</dd></div>
+                <div><dt>Последний заказ</dt><dd id="findLastOrder">—</dd></div>
+                <div><dt>Дата заказа</dt><dd id="findLastOrderDate">—</dd></div>
+                <div><dt>Сумма заказа</dt><dd id="findLastOrderSum">—</dd></div>
+              </dl>
+            </section>
+            <section class="client-info-section client-bonus-info">
+              <h4>Бонусы</h4>
+              <div class="bonus-available-total">
+                <span>Доступно всего</span>
+                <strong id="findAvailableBonusTotal">—</strong>
+              </div>
+              <dl class="details-list">
+                <div><dt>Приветственные бонусы доступно</dt><dd id="findWelcomeBonusAvailable">—</dd></div>
+                <div><dt>Бонусы ДР доступно</dt><dd id="findBirthdayBonusAvailable">—</dd></div>
+                <div id="findBirthdayBonusExpiresRow" hidden><dt>Бонусы ДР действуют до</dt><dd id="findBirthdayBonusExpiresAt">—</dd></div>
+              </dl>
+            </section>
           </article>
         </aside>
 
@@ -306,14 +320,28 @@
 
           <article class="details-card">
             <h3>Информация о клиенте</h3>
-            <dl class="details-list">
-              <div><dt>Заказов</dt><dd id="messengerOrdersCount">—</dd></div>
-              <div><dt>Начислено бонусов</dt><dd id="messengerAccruedTotal">—</dd></div>
-              <div><dt>Списано бонусов</dt><dd id="messengerSpentTotal">—</dd></div>
-              <div><dt>Последний заказ</dt><dd id="messengerLastOrder">—</dd></div>
-              <div><dt>Дата заказа</dt><dd id="messengerLastOrderDate">—</dd></div>
-              <div><dt>Сумма заказа</dt><dd id="messengerLastOrderSum">—</dd></div>
-            </dl>
+            <section class="client-info-section">
+              <h4>Покупки</h4>
+              <dl class="details-list">
+                <div><dt>Заказов</dt><dd id="messengerOrdersCount">—</dd></div>
+                <div><dt>Сумма покупок</dt><dd id="messengerPurchaseSum">—</dd></div>
+                <div><dt>Последний заказ</dt><dd id="messengerLastOrder">—</dd></div>
+                <div><dt>Дата заказа</dt><dd id="messengerLastOrderDate">—</dd></div>
+                <div><dt>Сумма заказа</dt><dd id="messengerLastOrderSum">—</dd></div>
+              </dl>
+            </section>
+            <section class="client-info-section client-bonus-info">
+              <h4>Бонусы</h4>
+              <div class="bonus-available-total">
+                <span>Доступно всего</span>
+                <strong id="messengerAvailableBonusTotal">—</strong>
+              </div>
+              <dl class="details-list">
+                <div><dt>Приветственные бонусы доступно</dt><dd id="messengerWelcomeBonusAvailable">—</dd></div>
+                <div><dt>Бонусы ДР доступно</dt><dd id="messengerBirthdayBonusAvailable">—</dd></div>
+                <div id="messengerBirthdayBonusExpiresRow" hidden><dt>Бонусы ДР действуют до</dt><dd id="messengerBirthdayBonusExpiresAt">—</dd></div>
+              </dl>
+            </section>
           </article>
         </aside>
 

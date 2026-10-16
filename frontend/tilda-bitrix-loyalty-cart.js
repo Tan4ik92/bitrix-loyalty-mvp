@@ -244,27 +244,6 @@
   function getAppliedTildaPromo({ includeLoyalty = false } = {}) {
     const cartPromo = window.tcart?.promocode;
     if (cartPromo && typeof cartPromo === "object") {
-      const exclusionPromo = window.tcart?.v2sdNonDiscountableOriginalPromo;
-      if (exclusionPromo && typeof exclusionPromo === "object") {
-        const code = normalizePromoCode(exclusionPromo.code);
-        const discountPercent = Math.max(0, Math.min(100, Number(exclusionPromo.discountPercent || 0)));
-        const discountAmount = roundMoney(Number(exclusionPromo.discountAmount || 0));
-        if (code && !includeLoyalty && isLoyaltyPromoCode(code)) return null;
-        if (code && (discountPercent || discountAmount) && (includeLoyalty || !isLoyaltyPromoCode(code))) {
-          return { code, discountPercent, discountAmount };
-        }
-      }
-      const combinedPromo = window.tcart?.v2sdCombinedDiscountPromo;
-      if (combinedPromo && typeof combinedPromo === "object") {
-        const code = normalizePromoCode(combinedPromo.code);
-        const discountPercent = Math.max(0, Math.min(100, Number(combinedPromo.discountPercent || 0)));
-        const discountAmount = roundMoney(Number(combinedPromo.discountAmount || 0));
-        if (code && !includeLoyalty && isLoyaltyPromoCode(code)) return null;
-        if (code && (discountPercent || discountAmount) && (includeLoyalty || !isLoyaltyPromoCode(code))) {
-          return { code, discountPercent, discountAmount };
-        }
-        return null;
-      }
       const code = normalizePromoCode(cartPromo.promocode || cartPromo.code);
       const discountPercent = Math.max(0, Math.min(100, Number(cartPromo.discountpercent || 0)));
       const discountAmount = roundMoney(Number(cartPromo.discountsum || cartPromo.prodamount_discountsum || 0));
@@ -372,41 +351,6 @@
     }, 0);
     if (productsTotal > 0) return productsTotal;
     return numberFromText(document.querySelector(".t706__cartwin-prodamount")?.textContent);
-  }
-
-  const NON_DISCOUNTABLE_PRODUCT_IDS = new Set([
-    "2p8AQPJFhkOdzuQ5QDfyY3",
-    "jjBIe389hY-R62VLIA4nw0",
-  ]);
-  const NON_DISCOUNTABLE_PRODUCT_NAMES = new Set([
-    "Пакет маленький крафтовый",
-    "Пакет большой крафтовый",
-    "Маленький подарочный пакет (35×25×15)",
-    "Большой подарочный пакет (40×30×15)",
-  ]);
-
-  function getProductAmount(product) {
-    const amount = Number(product?.amount);
-    const quantity = Number(product?.quantity || product?.qty || 1);
-    const price = Number(product?.price || 0);
-    return roundMoney(Number.isFinite(amount) && amount >= 0 ? amount : price * quantity);
-  }
-
-  function isDiscountEligibleProduct(product) {
-    if (product?.v2sdDiscountEligible === false || product?.v2sdBonusEligible === false) return false;
-    if (product?.v2sdGiftPackaging) return false;
-    const externalId = String(product?.externalid || product?.externalId || product?.sku || product?.SKU || "").trim();
-    const name = String(product?.name || product?.title || product?.product || product?.product_name || "")
-      .replace(/\s+/g, " ").trim();
-    return !NON_DISCOUNTABLE_PRODUCT_IDS.has(externalId.split("#")[0]) && !NON_DISCOUNTABLE_PRODUCT_NAMES.has(name);
-  }
-
-  function getDiscountEligibleSubtotal(subtotal = getSubtotal()) {
-    const products = getCartProducts();
-    if (!products.length) return roundMoney(subtotal);
-    return Math.min(roundMoney(subtotal), roundMoney(products.reduce((sum, product) => (
-      sum + (isDiscountEligibleProduct(product) ? getProductAmount(product) : 0)
-    ), 0)));
   }
 
   function getExternalCartAmount(subtotal) {
@@ -760,27 +704,24 @@
     const account = STATE.account;
     const loyalty = account?.contact?.loyalty || {};
     const subtotal = roundMoney(getSubtotal());
-    const discountEligibleSubtotal = getDiscountEligibleSubtotal(subtotal);
-    const nonDiscountableSubtotal = Math.max(0, roundMoney(subtotal - discountEligibleSubtotal));
     const rawLoyaltyPercent = Math.max(0, Math.min(100, Number(loyalty.discountPercent || 0)));
     const activePromo = syncVisibleTildaPromoState() || STATE.promo;
     const rawPromoPercent = Math.max(0, Math.min(100, Number(activePromo?.discountPercent || 0)));
     const rawPromoAmount = roundMoney(Number(activePromo?.discountAmount || 0));
     const hasFixedPromo = rawPromoAmount > 0 && rawPromoPercent <= 0;
-    const rawLoyaltyDiscountAmount = roundMoney(discountEligibleSubtotal * rawLoyaltyPercent / 100);
-    const rawPromoDiscountAmount = hasFixedPromo ? Math.min(discountEligibleSubtotal, rawPromoAmount) : roundMoney(discountEligibleSubtotal * rawPromoPercent / 100);
+    const rawLoyaltyDiscountAmount = roundMoney(subtotal * rawLoyaltyPercent / 100);
+    const rawPromoDiscountAmount = hasFixedPromo ? Math.min(subtotal, rawPromoAmount) : roundMoney(subtotal * rawPromoPercent / 100);
     const loyaltyWins = STATE.loyaltyEnabled && rawLoyaltyDiscountAmount > rawPromoDiscountAmount;
     const promoWins = rawPromoDiscountAmount > 0 && !loyaltyWins;
     const loyaltyPercent = loyaltyWins ? rawLoyaltyPercent : 0;
     const promoDiscountPercent = promoWins && !hasFixedPromo ? rawPromoPercent : 0;
-    const loyaltyDiscountAmount = roundMoney(discountEligibleSubtotal * loyaltyPercent / 100);
+    const loyaltyDiscountAmount = roundMoney(subtotal * loyaltyPercent / 100);
     const promoDiscountAmount = promoWins ? rawPromoDiscountAmount : 0;
     const bonusBalance = roundMoney(getBonusBalance(loyalty));
     const welcomeBonusAvailable = roundMoney(getSourceBonusAvailable(loyalty, "welcomeBonus"));
     const birthdayBonusAvailable = roundMoney(getSourceBonusAvailable(loyalty, "birthdayBonus"));
-    const eligibleAfterDiscounts = Math.max(0, roundMoney(discountEligibleSubtotal - loyaltyDiscountAmount - promoDiscountAmount));
     const productsAfterDiscounts = Math.max(0, roundMoney(subtotal - loyaltyDiscountAmount - promoDiscountAmount));
-    const maxBonus = Math.max(0, Math.min(bonusBalance, eligibleAfterDiscounts));
+    const maxBonus = Math.max(0, Math.min(bonusBalance, productsAfterDiscounts));
     const bonusUsed = normalizeSelectedBonus(STATE.selectedBonus, maxBonus);
     if (bonusUsed !== STATE.selectedBonus) STATE.selectedBonus = bonusUsed;
     const productsPayTotal = Math.max(0, roundMoney(productsAfterDiscounts - bonusUsed));
@@ -795,8 +736,6 @@
     return {
       contactId: account?.contact?.id || "",
       subtotal,
-      discountEligibleSubtotal,
-      nonDiscountableSubtotal,
       baseAmount,
       externalAmount,
       rawLoyaltyPercent,
@@ -812,7 +751,6 @@
       loyaltyWins,
       promoWins,
       hasFixedPromo,
-      productsAfterDiscounts,
       manualAdjustmentAmount,
       tildaDiscountAmount,
       bonusBalance,
@@ -873,36 +811,12 @@
         clearTildaPromocode();
         setPromoInputValue("");
       }
-      applyNonDiscountableProductsAdjustment(calc);
       refreshTildaCartTotals();
-      syncTildaPayAmount(calc);
       setTimeout(refreshTildaCartTotals, 120);
       setTimeout(refreshTildaCartTotals, 450);
     } catch (error) {
       console.warn("V2SD loyalty cart promocode apply failed:", error);
     }
-  }
-
-  function applyNonDiscountableProductsAdjustment(calc) {
-    const cart = window.tcart;
-    if (!cart || !(calc?.nonDiscountableSubtotal > 0)) return;
-    const discountAmount = roundMoney(calc.tildaDiscountAmount || 0);
-    if (!(discountAmount > 0)) return;
-    const active = cart.promocode || {};
-    const code = normalizePromoCode(active.promocode || active.code || calc.promoCode || calc.loyaltyPromoCode);
-    if (!cart.v2sdNonDiscountableOriginalPromo) {
-      cart.v2sdNonDiscountableOriginalPromo = {
-        code,
-        discountPercent: Math.max(0, Number(active.discountpercent || calc.promoDiscountPercent || calc.loyaltyPercent || 0)),
-        discountAmount: Math.max(0, Number(active.discountsum || 0)),
-      };
-    }
-    cart.promocode = {
-      promocode: code || "V2SD_DISCOUNT",
-      discountpercent: 0,
-      discountsum: discountAmount,
-      message: "OK",
-    };
   }
 
   function applyTildaPromocode(code, percent) {
@@ -929,7 +843,6 @@
     delete cart.amount_withoutdiscount;
     delete cart.v2sdLoyaltyAppliedAmount;
     delete cart.v2sdLoyaltyPayTotal;
-    delete cart.v2sdNonDiscountableOriginalPromo;
     STATE.lastAppliedTildaCode = "";
   }
 
@@ -1015,29 +928,17 @@
   function clearBonusAdjustment() {
     const cart = window.tcart;
     if (!cart) return;
-    const originalPromo = cart.v2sdCombinedDiscountPromo;
-    if (originalPromo && typeof originalPromo === "object") {
-      const code = normalizePromoCode(originalPromo.code);
-      const discountPercent = Math.max(0, Math.min(100, Number(originalPromo.discountPercent || 0)));
-      const discountAmount = roundMoney(Number(originalPromo.discountAmount || 0));
-      if (code && (discountPercent > 0 || discountAmount > 0)) {
-        cart.promocode = {
-          promocode: code,
-          discountpercent: discountPercent,
-          discountsum: discountAmount,
-          message: "OK",
-        };
-      } else {
-        delete cart.promocode;
-      }
+    const baseAmount = Number(cart.v2sdBonusBaseAmount || 0);
+    const applied = Number(cart.v2sdBonusAppliedAmount || STATE.lastAppliedBonusAmount || 0);
+    if (baseAmount > 0 && applied > 0) {
+      cart.amount = roundMoney(baseAmount);
+      cart.total = roundMoney(baseAmount);
     }
-    delete cart.v2sdCombinedDiscountPromo;
     delete cart.v2sdBonusBaseAmount;
     delete cart.v2sdBonusAppliedAmount;
     delete cart.v2sdBonusPayTotal;
     STATE.lastAppliedBonusAmount = 0;
     STATE.lastBonusSignature = "";
-    if (originalPromo) refreshTildaCartTotals();
   }
 
   function getBonusBaseAmount(calc) {
@@ -1066,19 +967,11 @@
       scheduleVisibleTildaTotalsSync(STATE.lastCalc);
       return;
     }
-    const cart = window.tcart;
     const baseAmount = getBonusBaseAmount(calc);
-    const appliedAdjustment = Math.min(manualAdjustment, calc.productsAfterDiscounts || baseAmount);
-    const combinedDiscount = Math.min(calc.subtotal, roundMoney(calc.tildaDiscountAmount + appliedAdjustment));
-    const payTotal = Math.max(0, roundMoney(calc.payTotalBeforeBonus - appliedAdjustment));
-    const originalDiscountPercent = calc.promoDiscountPercent || calc.loyaltyPercent || 0;
-    const originalPromo = cart.v2sdCombinedDiscountPromo || cart.v2sdNonDiscountableOriginalPromo || {
-      code: normalizePromoCode(calc.promoCode || calc.loyaltyPromoCode || "V2SD_BONUS"),
-      discountPercent: originalDiscountPercent,
-      discountAmount: originalDiscountPercent > 0 ? 0 : (calc.promoDiscountAmount || 0),
-    };
-    const signature = JSON.stringify({ combinedDiscount, appliedAdjustment, bonusUsed, payTotal, context });
-    const currentCartAmount = roundMoney(Number(cart.amount) || 0);
+    const appliedAdjustment = Math.min(manualAdjustment, baseAmount);
+    const payTotal = Math.max(0, roundMoney(baseAmount - appliedAdjustment));
+    const signature = JSON.stringify({ baseAmount, appliedAdjustment, bonusUsed, payTotal, context });
+    const currentCartAmount = roundMoney(Number(window.tcart.amount) || 0);
     if (
       signature === STATE.lastBonusSignature &&
       currentCartAmount === payTotal &&
@@ -1087,20 +980,14 @@
       context !== "on click"
     ) return;
     STATE.lastBonusSignature = signature;
-    cart.v2sdCombinedDiscountPromo = originalPromo;
-    cart.promocode = {
-      promocode: originalPromo.code,
-      discountpercent: 0,
-      discountsum: combinedDiscount,
-      message: "OK",
-    };
-    cart.v2sdBonusBaseAmount = baseAmount;
-    cart.v2sdBonusAppliedAmount = appliedAdjustment;
-    cart.v2sdBonusPayTotal = payTotal;
+    window.tcart.amount = payTotal;
+    window.tcart.total = payTotal;
+    window.tcart.v2sdBonusBaseAmount = baseAmount;
+    window.tcart.v2sdBonusAppliedAmount = appliedAdjustment;
+    window.tcart.v2sdBonusPayTotal = payTotal;
     STATE.lastAppliedBonusAmount = appliedAdjustment;
     STATE.lastCalc = { ...calc, bonusUsed, payTotal };
     syncTildaPayAmount(STATE.lastCalc);
-    refreshTildaCartTotals();
     scheduleVisibleTildaTotalsSync(STATE.lastCalc);
   }
 

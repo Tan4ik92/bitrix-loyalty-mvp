@@ -26,6 +26,10 @@
   function memberContactId(profile, email) {
     return String(profile.bitrixContactId || profile.bitrix_contact_id || (email ? localStorage.getItem(`v2sd_bitrix_contact_id:${email}`) : "") || new URLSearchParams(window.location.search).get("bitrixContactId") || new URLSearchParams(window.location.search).get("contactId") || "").trim();
   }
+  function hasMemberIdentity(profile) {
+    const email = memberEmail(profile);
+    return Boolean(email || memberContactId(profile, email));
+  }
   async function loadAccount(profile = getMemberProfile()) {
     const email = memberEmail(profile);
     const contactId = memberContactId(profile, email);
@@ -109,11 +113,13 @@
   ready(async () => {
     try {
       const firstProfile = getMemberProfile();
-      const firstEmail = memberEmail(firstProfile);
-      await renderAccount(firstProfile);
-      waitForCurrentTildaProfile().then((profile) => {
-        if (memberEmail(profile) && memberEmail(profile) !== firstEmail) return renderAccount(profile);
-      }).catch(renderError);
+      if (hasMemberIdentity(firstProfile)) {
+        await renderAccount(firstProfile);
+        return;
+      }
+      const currentProfile = await waitForCurrentTildaProfile();
+      if (!hasMemberIdentity(currentProfile)) throw new Error("Не найден профиль пользователя Tilda Members.");
+      await renderAccount(currentProfile);
     } catch (error) { renderError(error); }
   });
 })();

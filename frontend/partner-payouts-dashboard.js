@@ -7,12 +7,21 @@ const controls = {
   paid: document.getElementById("payoutPaid"),
   search: document.getElementById("payoutSearch"),
   refresh: document.getElementById("payoutRefresh"),
+  markPaid: document.getElementById("payoutMarkPaid"),
+  selectAll: document.getElementById("payoutSelectAll"),
+  selectionCount: document.getElementById("payoutSelectionCount"),
   message: document.getElementById("payoutMessage"),
   groups: document.getElementById("payoutGroups"),
 };
+let currentGroups = [];
 
 controls.month.value = new Date().toISOString().slice(0, 7);
 controls.refresh.addEventListener("click", loadReport);
+controls.markPaid.addEventListener("click", markSelectedPaid);
+controls.selectAll.addEventListener("change", () => {
+  for (const checkbox of controls.groups.querySelectorAll(".group-selector:not(:disabled)")) checkbox.checked = controls.selectAll.checked;
+  updateSelectionState();
+});
 for (const control of [controls.month, controls.type, controls.stage, controls.dealStage, controls.branch, controls.paid]) {
   control.addEventListener("change", loadReport);
 }
@@ -73,18 +82,24 @@ function renderMetrics(totals) {
 }
 
 function renderGroups(groups) {
+  currentGroups = groups;
   controls.groups.textContent = "";
+  controls.selectAll.checked = false;
+  controls.selectAll.indeterminate = false;
+  updateSelectionState();
   if (!groups.length) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="9" class="empty-cell">За выбранный период выплат не найдено.</td>`;
+    row.innerHTML = `<td colspan="10" class="empty-cell">За выбранный период выплат не найдено.</td>`;
     controls.groups.append(row);
     return;
   }
 
   for (const group of groups) {
+    const payableIds = (group.days || []).filter(isPayableRow).map((row) => String(row.id));
     const summary = document.createElement("tr");
     summary.className = "group-row";
     summary.innerHTML = `
+      <td class="selection-column"><input class="group-selector" type="checkbox" aria-label="Выбрать выплаты ${escapeHtml(group.code || "")}" ${payableIds.length ? "" : "disabled"}></td>
       <td><button class="row-toggle" type="button">+</button><b>${escapeHtml(group.code || "-")}</b></td>
       <td>${renderLink(group.partnerName || "-", group.partnerUrl)}</td>
       <td>${escapeHtml(group.partnershipTypeLabel || "-")}</td>
@@ -95,60 +110,101 @@ function renderGroups(groups) {
       <td>${formatMoney(group.totals.managerRemainder)}</td>
       <td>${formatMoney(group.totals.unpaidAmount)}</td>
     `;
-    const details = document.createElement("tr");
-    details.className = "details-row";
-    details.hidden = true;
-    details.innerHTML = `<td colspan="9">${renderDays(group.days || [])}</td>`;
+    const details = document.createElement("tbody");
+    details.innerHTML = renderDays(group.days || []);
+    const detailRows = [...details.children];
+    detailRows.forEach((row) => { row.hidden = true; });
+    const selector = summary.querySelector(".group-selector");
+    selector.dataset.ids = payableIds.join(",");
+    selector.addEventListener("change", updateSelectionState);
     summary.querySelector(".row-toggle").addEventListener("click", (event) => {
-      details.hidden = !details.hidden;
-      event.currentTarget.textContent = details.hidden ? "+" : "-";
+      const opening = detailRows[0]?.hidden;
+      detailRows.forEach((row) => { row.hidden = !opening; });
+      event.currentTarget.textContent = opening ? "-" : "+";
     });
-    controls.groups.append(summary, details);
+    controls.groups.append(summary, ...detailRows);
+  }
+}
+
+function isPayableRow(row) {
+  return !row.isPaid && String(row.stageId || "").toUpperCase() !== "DT1042_17:FAIL";
+}
+
+function selectedPayoutIds() {
+  return [...controls.groups.querySelectorAll(".group-selector:checked")]
+    .flatMap((checkbox) => checkbox.dataset.ids.split(","))
+    .filter(Boolean);
+}
+
+function updateSelectionState() {
+  const enabled = [...controls.groups.querySelectorAll(".group-selector:not(:disabled)")];
+  const selected = enabled.filter((checkbox) => checkbox.checked);
+  const payoutIds = selectedPayoutIds();
+  controls.selectionCount.textContent = `Выбрано выплат: ${payoutIds.length}`;
+  controls.markPaid.disabled = payoutIds.length === 0;
+  controls.selectAll.disabled = enabled.length === 0;
+  controls.selectAll.checked = enabled.length > 0 && selected.length === enabled.length;
+  controls.selectAll.indeterminate = selected.length > 0 && selected.length < enabled.length;
+}
+
+async function markSelectedPaid() {
+  const ids = selectedPayoutIds();
+  if (!ids.length) return;
+  if (!window.confirm(`Перенести выбранные выплаты (${ids.length}) на стадию «Выплачено»?`)) return;
+  controls.markPaid.disabled = true;
+  controls.refresh.disabled = true;
+  setMessage("Обновляем выбранные выплаты в Bitrix24...");
+  try {
+    const response = await fetch("/api/partner-payouts/mark-paid", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Не удалось обновить выплаты.");
+    const moved = Array.isArray(payload.moved) ? payload.moved.length : 0;
+    const failed = Array.isArray(payload.errors) ? payload.errors.length : 0;
+    await loadReport();
+    setMessage(failed ? `Выплачено: ${moved}. Ошибок: ${failed}.` : `Выплаты отмечены как оплаченные: ${moved}.`, failed ? "error" : "success");
+  } catch (error) {
+    setMessage(error.message, "error");
+  } finally {
+    controls.markPaid.disabled = selectedPayoutIds().length === 0;
+    controls.refresh.disabled = false;
   }
 }
 
 function renderDays(days) {
-  const rows = days.map((row) => `
-    <tr>
-      <td>${formatDate(row.date)}</td>
-      <td>${renderLink(row.title || `#${row.id}`, row.url)}</td>
-      <td>${renderDealWithReturns(row)}</td>
-      <td>${formatMoney(row.orderAmount)}</td>
-      <td>${formatPercent(row.rewardPercent)}</td>
-      <td>${formatMoney(row.payoutAmount)}</td>
-      <td>${formatMoney(row.managerRemainder)}</td>
-      <td>${escapeHtml(row.dealStageLabel || "-")}</td>
-      <td>${escapeHtml(row.paidLabel || "-")}</td>
-    </tr>
-  `).join("");
-  return `
-    <table class="details-table">
-      <colgroup>
-        <col class="details-date"><col class="details-payout"><col class="details-deal">
-        <col class="details-amount"><col class="details-percent"><col class="details-reward">
-        <col class="details-manager-remainder"><col class="details-stage"><col class="details-paid">
-      </colgroup>
-      <thead><tr><th>Дата</th><th>Карточка выплаты</th><th>Сделка</th><th>Сумма</th><th>%</th><th>ЗП партнеру</th><th>Остаток для менеджера</th><th>Стадия сделки</th><th>Оплачено</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-  `;
+  return `<tr class="detail-line detail-heading"><td></td><th>Дата</th><th>Карточка выплаты</th><th colspan="2">Сделка / Стадия</th><th>Сумма</th><th>%</th><th>ЗП партнеру</th><th>Остаток для менеджера</th><th></th></tr>` +
+    days.map((row) => `
+      <tr class="detail-line">
+        <td></td>
+        <td>${formatDate(row.date)}</td>
+        <td>${renderPayoutCardLink(row)}</td>
+        <td colspan="2">${renderPayoutDeal(row)}<span class="deal-stage">${escapeHtml(row.dealStageLabel || "-")}</span></td>
+        <td>${formatMoney(row.orderAmount)}</td>
+        <td>${formatPercent(row.rewardPercent)}</td>
+        <td>${formatMoney(row.payoutAmount)}</td>
+        <td>${formatMoney(row.managerRemainder)}</td>
+        <td></td>
+      </tr>
+    `).join("");
 }
 
-function renderDealWithReturns(row) {
-  const deal = row.dealUrl
-    ? renderLink(row.dealTitle || `Сделка #${row.dealId}`, row.dealUrl)
-    : row.offlineWithoutRegistration
-      ? '<span class="offline-sale-label"><span>Без сделки</span><small>Продажа офлайн без регистрации</small></span>'
-      : "Без сделки";
-  const returns = (row.returnDeals || []).map((item) => `
-    <div class="linked-return">
-      <span class="linked-return-label">Возврат:</span>
-      ${renderLink(item.title || `Сделка #${item.id}`, item.url)}
-      <span class="linked-return-stage">${escapeHtml(item.stageLabel || item.stageId || "Стадия не указана")}</span>
-      ${Number(item.amount || 0) ? `<span class="linked-return-amount">${formatMoney(item.amount)}</span>` : ""}
-    </div>
-  `).join("");
-  return `${deal}${returns}`;
+function renderPayoutDeal(row) {
+  if (row.dealUrl) {
+    const title = row.dealTitle || `Сделка #${row.dealId}`;
+    return `<a class="bitrix-link deal-link" href="${escapeHtml(row.dealUrl)}" title="${escapeHtml(title)}" target="_blank" rel="noopener">${escapeHtml(title)}</a>`;
+  }
+  if (row.offlineWithoutRegistration) {
+    return '<span class="offline-sale-label"><span>Без сделки</span><small>Продажа офлайн без регистрации</small></span>';
+  }
+  return "Без сделки";
+}
+
+function renderPayoutCardLink(row) {
+  if (!row.url) return "Карточка выплаты";
+  return `<a class="bitrix-link payout-card-link" href="${escapeHtml(row.url)}" target="_blank" rel="noopener">Карточка выплаты</a>`;
 }
 
 function renderLink(text, href) {

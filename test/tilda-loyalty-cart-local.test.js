@@ -123,7 +123,6 @@ function createContext({
   birthdayBonusAvailable = null,
   prodamount = 4000,
   amount = prodamount,
-  products = null,
   deliveryCalculator = null,
 } = {}) {
   const elementsById = new Map();
@@ -253,7 +252,7 @@ function createContext({
   context.tcart = {
     prodamount,
     amount,
-    products: products || [{ price: prodamount, quantity: 1, amount: prodamount }],
+    products: [{ price: prodamount, quantity: 1, amount: prodamount }],
   };
   if (userPromoCode && (userPromoPercent || userPromoAmount)) {
     context.tcart.promocode = {
@@ -291,17 +290,6 @@ function createContext({
     const fixed = Number(context.tcart.promocode?.discountsum || 0);
     context.tcart.prodamount_discountsum = fixed || Math.ceil((context.tcart.prodamount * percent / 100) * 100) / 100;
     context.tcart.prodamount_withdiscount = context.tcart.prodamount - context.tcart.prodamount_discountsum;
-    let allocated = 0;
-    context.tcart.products.forEach((product, index) => {
-      const originalAmount = Number(product.amount);
-      const isLast = index === context.tcart.products.length - 1;
-      const discountedAmount = isLast
-        ? roundTestMoney(context.tcart.prodamount_withdiscount - allocated)
-        : roundTestMoney(originalAmount * context.tcart.prodamount_withdiscount / context.tcart.prodamount);
-      product.amount_withdiscount = discountedAmount;
-      product.price_withdiscount = roundTestMoney(discountedAmount / Number(product.quantity || 1));
-      allocated = roundTestMoney(allocated + discountedAmount);
-    });
     const delivery = typeof deliveryCalculator === "function"
       ? deliveryCalculator(context.tcart.prodamount_withdiscount, context.tcart)
       : Math.max(0, amount - prodamount);
@@ -329,21 +317,6 @@ async function clickLoyalty(context) {
   await new Promise((resolve) => setTimeout(resolve, 700));
 }
 
-async function selectBonus(context, amount) {
-  const panel = context.document.getElementById("v2sd-loyalty-cart");
-  const button = panel.querySelectorAll("[data-v2sd-bonus]").find((item) => item.getAttribute("data-v2sd-bonus") === String(amount));
-  assert.ok(button, `bonus button ${amount} should exist`);
-  button.listeners.click();
-  await new Promise((resolve) => setTimeout(resolve, 700));
-}
-
-function assertProductTotal(context, expected) {
-  assert.equal(
-    roundTestMoney(context.tcart.products.reduce((sum, product) => sum + Number(product.amount_withdiscount || product.amount || 0), 0)),
-    expected,
-  );
-}
-
 test("applies loyalty promocode when loyalty percent is greater than customer promo", async () => {
   const context = await runScenario({ loyaltyPercent: 7, userPromoCode: "VLADA", userPromoPercent: 5 });
   assert.equal(context.tcart.promocode.promocode, "VLADA");
@@ -368,78 +341,6 @@ test("keeps stronger customer promo instead of loyalty promocode", async () => {
   assert.equal(context.tcart.promocode.discountpercent, 10);
   assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.loyaltyPercent, 0);
   assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.promoDiscountPercent, 10);
-});
-
-test("does not apply promocode discount to gift packaging but keeps it in payment total", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 0,
-    userPromoCode: "AUTUMN10",
-    userPromoPercent: 10,
-    prodamount: 4100,
-    amount: 4100,
-    products: [
-      { price: 4000, quantity: 1, amount: 4000 },
-      {
-        price: 100,
-        quantity: 1,
-        amount: 100,
-        externalid: "jjBIe389hY-R62VLIA4nw0",
-        v2sdGiftPackaging: "large",
-        v2sdDiscountEligible: false,
-        v2sdBonusEligible: false,
-      },
-    ],
-  });
-
-  assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.discountEligibleSubtotal, 4000);
-  assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.nonDiscountableSubtotal, 100);
-  assert.equal(context.tcart.promocode.discountpercent, 0);
-  assert.equal(context.tcart.promocode.discountsum, 400);
-  assert.equal(context.tcart.amount, 3700);
-  assert.equal(context.document.form.hidden.get("v2sd_final_amount").value, "3700");
-});
-
-test("recognizes packaging after Tilda drops custom product metadata", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 0,
-    userPromoCode: "AUTUMN10",
-    userPromoPercent: 10,
-    prodamount: 4050,
-    amount: 4050,
-    products: [
-      { name: "Обычный товар", price: 4000, quantity: 1, amount: 4000 },
-      { name: "Пакет маленький крафтовый", price: 50, quantity: 1, amount: 50 },
-    ],
-  });
-  assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.discountEligibleSubtotal, 4000);
-  assert.equal(context.tcart.promocode.discountsum, 400);
-  assert.equal(context.tcart.amount, 3650);
-});
-
-test("does not spend bonuses against gift packaging value", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 0,
-    bonusBalance: 300,
-    prodamount: 500,
-    amount: 500,
-    products: [
-      { price: 400, quantity: 1, amount: 400 },
-      {
-        price: 100,
-        quantity: 1,
-        amount: 100,
-        externalid: "jjBIe389hY-R62VLIA4nw0",
-        v2sdGiftPackaging: "large",
-        v2sdDiscountEligible: false,
-        v2sdBonusEligible: false,
-      },
-    ],
-  });
-
-  await selectBonus(context, 300);
-  assert.equal(context.V2SD_LOYALTY_CART_DEBUG.calc.maxBonus, 300);
-  assert.equal(context.tcart.amount, 200);
-  assert.equal(context.document.form.hidden.get("v2sd_final_amount").value, "200");
 });
 
 test("keeps fixed certificate and applies loyalty discount on top", async () => {
@@ -480,27 +381,6 @@ test("applies loyalty promocode when customer promo is absent", async () => {
   assert.equal(context.tcart.amount, 3600);
 });
 
-test("applies the same percentage to every product and preserves the discounted total", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 5,
-    bonusBalance: 0,
-    prodamount: 5800,
-    products: [
-      { price: 3000, quantity: 1, amount: 3000 },
-      { price: 1400, quantity: 2, amount: 2800 },
-    ],
-  });
-  await clickLoyalty(context);
-
-  assert.equal(context.tcart.promocode.discountpercent, 5);
-  assert.equal(context.tcart.products[0].amount_withdiscount, 2850);
-  assert.equal(context.tcart.products[1].amount_withdiscount, 2660);
-  assert.equal(context.tcart.products[0].price_withdiscount, 2850);
-  assert.equal(context.tcart.products[1].price_withdiscount, 1330);
-  assert.equal(context.tcart.prodamount_withdiscount, 5510);
-  assert.equal(roundTestMoney(context.tcart.products.reduce((sum, product) => sum + product.amount_withdiscount, 0)), 5510);
-});
-
 test("subtracts a selected fixed bonus after Tilda promocode recalculation", async () => {
   const context = await runScenario({ loyaltyPercent: 10 });
   await clickLoyalty(context);
@@ -512,8 +392,6 @@ test("subtracts a selected fixed bonus after Tilda promocode recalculation", asy
   button300.listeners.click();
   await new Promise((resolve) => setTimeout(resolve, 700));
   assert.equal(context.tcart.promocode.promocode, "LOYALTY10");
-  assert.equal(context.tcart.promocode.discountpercent, 0);
-  assert.equal(context.tcart.promocode.discountsum, 700);
   assert.equal(context.tcart.amount, 3300);
   assert.equal(context.tcart.v2sdBonusAppliedAmount, 300);
   assert.equal(context.document.form.hidden.get("v2sd_bonus_used").value, "300");
@@ -531,132 +409,6 @@ test("subtracts a selected fixed bonus after Tilda promocode recalculation", asy
   assert.equal(context.tcart.v2sdBonusAppliedAmount, undefined);
   assert.equal(context.document.form.hidden.get("v2sd_bonus_used").value, "0");
   assert.equal(context.document.form.hidden.get("v2sd_final_amount").value, "3600");
-  assert.equal(context.tcart.promocode.discountpercent, 10);
-  assert.equal(context.tcart.promocode.discountsum, 0);
-});
-
-test("combines fixed certificate and bonus through native Tilda item discounting", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 0,
-    userPromoCode: "6697291699393489",
-    userPromoAmount: 5000,
-    bonusBalance: 300,
-    prodamount: 5800,
-    amount: 800,
-    products: [
-      { price: 3000, quantity: 1, amount: 3000 },
-      { price: 1400, quantity: 2, amount: 2800 },
-    ],
-  });
-  const panel = context.document.getElementById("v2sd-loyalty-cart");
-  const button300 = panel.querySelectorAll("[data-v2sd-bonus]").find((button) => button.getAttribute("data-v2sd-bonus") === "300");
-  button300.listeners.click();
-  await new Promise((resolve) => setTimeout(resolve, 700));
-
-  assert.equal(context.tcart.promocode.promocode, "6697291699393489");
-  assert.equal(context.tcart.promocode.discountpercent, 0);
-  assert.equal(context.tcart.promocode.discountsum, 5300);
-  assert.equal(context.tcart.prodamount_withdiscount, 500);
-  assert.equal(context.tcart.amount, 500);
-  assert.equal(context.tcart.products[0].amount_withdiscount, 258.62);
-  assert.equal(context.tcart.products[1].amount_withdiscount, 241.38);
-  assert.equal(roundTestMoney(context.tcart.products.reduce((sum, product) => sum + product.amount_withdiscount, 0)), 500);
-  assert.equal(context.document.form.hidden.get("v2sd_final_amount").value, "500");
-});
-
-test("combines a native percent promocode with bonus and restores the percent after cancellation", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 0,
-    userPromoCode: "AUTUMN5",
-    userPromoPercent: 5,
-    bonusBalance: 300,
-    prodamount: 5800,
-    products: [
-      { price: 3000, quantity: 1, amount: 3000 },
-      { price: 1400, quantity: 2, amount: 2800 },
-    ],
-  });
-  await selectBonus(context, 300);
-
-  assert.equal(context.tcart.promocode.promocode, "AUTUMN5");
-  assert.equal(context.tcart.promocode.discountpercent, 0);
-  assert.equal(context.tcart.promocode.discountsum, 590);
-  assert.equal(context.tcart.prodamount_withdiscount, 5210);
-  assert.equal(context.tcart.products[0].amount_withdiscount, 2694.83);
-  assert.equal(context.tcart.products[1].amount_withdiscount, 2515.17);
-  assertProductTotal(context, 5210);
-
-  await selectBonus(context, 0);
-  assert.equal(context.tcart.promocode.promocode, "AUTUMN5");
-  assert.equal(context.tcart.promocode.discountpercent, 5);
-  assert.equal(context.tcart.promocode.discountsum, 0);
-  assert.equal(context.tcart.prodamount_withdiscount, 5510);
-  assertProductTotal(context, 5510);
-});
-
-test("uses the stronger loyalty discount with bonus instead of a weaker Tilda promocode", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 10,
-    userPromoCode: "AUTUMN5",
-    userPromoPercent: 5,
-    bonusBalance: 300,
-    prodamount: 5800,
-    products: [
-      { price: 3000, quantity: 1, amount: 3000 },
-      { price: 1400, quantity: 2, amount: 2800 },
-    ],
-  });
-  await clickLoyalty(context);
-  await selectBonus(context, 300);
-
-  assert.equal(context.tcart.promocode.promocode, "LOYALTY10");
-  assert.equal(context.tcart.promocode.discountsum, 880);
-  assert.equal(context.tcart.prodamount_withdiscount, 4920);
-  assertProductTotal(context, 4920);
-  assert.equal(context.document.form.hidden.get("v2sd_loyalty_discount_amount").value, "580");
-  assert.equal(context.document.form.hidden.get("v2sd_promo_discount_amount").value, "0");
-  assert.equal(context.document.form.hidden.get("v2sd_bonus_used").value, "300");
-});
-
-test("uses a stronger Tilda promocode with bonus instead of a weaker loyalty discount", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 5,
-    userPromoCode: "AUTUMN10",
-    userPromoPercent: 10,
-    bonusBalance: 300,
-    prodamount: 5800,
-    products: [
-      { price: 3000, quantity: 1, amount: 3000 },
-      { price: 1400, quantity: 2, amount: 2800 },
-    ],
-  });
-  await clickLoyalty(context);
-  await selectBonus(context, 300);
-
-  assert.equal(context.tcart.promocode.promocode, "AUTUMN10");
-  assert.equal(context.tcart.promocode.discountsum, 880);
-  assert.equal(context.tcart.prodamount_withdiscount, 4920);
-  assertProductTotal(context, 4920);
-  assert.equal(context.document.form.hidden.get("v2sd_loyalty_discount_amount").value, "0");
-  assert.equal(context.document.form.hidden.get("v2sd_promo_discount_amount").value, "580");
-});
-
-test("keeps an equal customer promocode as the winner when bonus is added", async () => {
-  const context = await runScenario({
-    loyaltyPercent: 5,
-    userPromoCode: "AUTUMN5",
-    userPromoPercent: 5,
-    bonusBalance: 300,
-    prodamount: 5800,
-  });
-  await clickLoyalty(context);
-  await selectBonus(context, 300);
-
-  assert.equal(context.tcart.promocode.promocode, "AUTUMN5");
-  assert.equal(context.tcart.promocode.discountsum, 590);
-  assert.equal(context.tcart.prodamount_withdiscount, 5210);
-  assert.equal(context.document.form.hidden.get("v2sd_loyalty_discount_amount").value, "0");
-  assert.equal(context.document.form.hidden.get("v2sd_promo_discount_amount").value, "290");
 });
 
 test("subtracts a fixed bonus from final Tilda amount including delivery", async () => {

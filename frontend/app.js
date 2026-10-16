@@ -203,11 +203,17 @@ function renderContact(contact) {
   document.getElementById("findPurchasesCard").textContent = `${formatMoney(state.find.totalPurchases)} ₽`;
   document.getElementById("findBonusesCard").textContent = `${formatMoney(state.find.bonusBalance)} ₽`;
   document.getElementById("findOrdersCount").textContent = contact.loyalty.ordersCount ?? "—";
-  document.getElementById("findAccruedTotal").textContent = moneyOrDash(contact.loyalty.accruedTotal);
-  document.getElementById("findSpentTotal").textContent = moneyOrDash(contact.loyalty.spentTotal);
+  document.getElementById("findPurchaseSum").textContent = moneyOrDash(contact.loyalty.purchaseSum);
   document.getElementById("findLastOrder").textContent = contact.loyalty.lastOrderNumber || "—";
   document.getElementById("findLastOrderDate").textContent = formatDate(contact.loyalty.lastOrderDate);
   document.getElementById("findLastOrderSum").textContent = moneyOrDash(contact.loyalty.lastOrderSum);
+  document.getElementById("findAvailableBonusTotal").textContent = moneyOrDash(state.find.bonusBalance);
+  document.getElementById("findWelcomeBonusAvailable").textContent = moneyOrDash(contact.loyalty.welcomeBonus?.available ?? 0);
+  document.getElementById("findBirthdayBonusAvailable").textContent = moneyOrDash(contact.loyalty.birthdayBonus?.available ?? 0);
+  const birthdayExpiresAt = contact.loyalty.birthdayBonus?.expiresAt || null;
+  const birthdayExpiresRow = document.getElementById("findBirthdayBonusExpiresRow");
+  birthdayExpiresRow.hidden = !birthdayExpiresAt;
+  document.getElementById("findBirthdayBonusExpiresAt").textContent = birthdayExpiresAt ? formatDate(birthdayExpiresAt) : "—";
   renderClientMode("messenger", contact);
   renderPreorderClient(contact);
   calculateTotals();
@@ -353,8 +359,10 @@ function resetFoundClient() {
   ["findDiscountCard", "findPurchasesCard", "findBonusesCard"].forEach((id, index) => {
     document.getElementById(id).textContent = index === 0 ? "0%" : "0 ₽";
   });
-  ["findOrdersCount", "findAccruedTotal", "findSpentTotal", "findLastOrder", "findLastOrderDate", "findLastOrderSum"]
+  ["findOrdersCount", "findPurchaseSum", "findLastOrder", "findLastOrderDate", "findLastOrderSum", "findAvailableBonusTotal",
+    "findWelcomeBonusAvailable", "findBirthdayBonusAvailable", "findBirthdayBonusExpiresAt"]
     .forEach((id) => { document.getElementById(id).textContent = "—"; });
+  document.getElementById("findBirthdayBonusExpiresRow").hidden = true;
   calculateTotals();
 }
 

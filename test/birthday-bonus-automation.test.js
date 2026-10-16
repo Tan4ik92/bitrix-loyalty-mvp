@@ -35,27 +35,6 @@ test("birthday bonus is not accrued twice in the same year", () => {
   assert.equal(plan.reason, "already_accrued_this_year");
 });
 
-test("daily automation expires the unused birthday bonus after its end date", () => {
-  const contact = {
-    id: 23509,
-    birthdate: "2015-07-29",
-    [loyaltyFields.birthdayBonusAccrued]: 500,
-    [loyaltyFields.birthdayBonusUsed]: 0,
-    [loyaltyFields.birthdayBonusExpired]: 0,
-    [loyaltyFields.birthdayBonusAccruedAt]: "2026-07-31",
-    [loyaltyFields.birthdayBonusExpiresAt]: "2026-08-05",
-    [loyaltyFields.birthdayBonusLastYear]: 2026,
-  };
-
-  const plan = buildBirthdayBonusPatch(contact, { now: new Date("2026-10-07T12:00:00+04:00") });
-
-  assert.equal(plan.shouldAccrue, false);
-  assert.equal(plan.shouldExpire, true);
-  assert.equal(plan.expiredAmount, 500);
-  assert.equal(plan.fields[loyaltyFields.birthdayBonusAccrued], 0);
-  assert.equal(plan.fields[loyaltyFields.birthdayBonusExpired], 500);
-});
-
 test("birthday bonus is skipped outside the 14-day window", () => {
   const contact = {
     id: 2165,

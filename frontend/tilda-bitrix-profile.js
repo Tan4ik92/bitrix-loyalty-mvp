@@ -50,6 +50,11 @@
     ).trim();
   }
 
+  function hasMemberIdentity(profile) {
+    const email = memberEmail(profile);
+    return Boolean(email || memberContactId(profile, email));
+  }
+
   async function loadProfile(profile = getMemberProfile()) {
     const email = memberEmail(profile);
     const contactId = memberContactId(profile, email);
@@ -216,11 +221,13 @@
   ready(async () => {
     try {
       const firstProfile = getMemberProfile();
-      const firstEmail = memberEmail(firstProfile);
-      await renderProfile(firstProfile);
-      waitForCurrentTildaProfile().then((profile) => {
-        if (memberEmail(profile) && memberEmail(profile) !== firstEmail) return renderProfile(profile);
-      }).catch(renderError);
+      if (hasMemberIdentity(firstProfile)) {
+        await renderProfile(firstProfile);
+        return;
+      }
+      const currentProfile = await waitForCurrentTildaProfile();
+      if (!hasMemberIdentity(currentProfile)) throw new Error("Не найден профиль пользователя Tilda Members.");
+      await renderProfile(currentProfile);
     } catch (error) { renderError(error); }
   });
 })();
