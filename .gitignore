@@ -7,9 +7,20 @@
 *.log
 *.out.log
 *.err.log
+logs/
+backend/*-state.json
+backend/*.ndjson
 
 # Rebuildable catalog cache
 backend/catalog-cache.json
+
+# Local captures and generated deployment artifacts
+live-product.html
+media/
+tools/
+tilda-*.min.js
+*.tar.gz
+*.zip
 
 # Dependencies and editor files
 node_modules/

@@ -1,4 +1,7 @@
 (function () {
+  // Styling contract: the order table is owned by Tilda. This adapter must not
+  // set CSS, classes, widths, spacing, typography, borders, or alignment.
+  // It may only replace the text in the date, composition, and amount cells.
   const DEFAULT_API_BASE = "http://127.0.0.1:3100";
   const API_BASE = String(window.V2SD_BITRIX_ACCOUNT_API || DEFAULT_API_BASE).replace(/\/$/, "");
   const PROJECT_ID = document.getElementById("allrecords")?.getAttribute("data-tilda-project-id") || "";
@@ -23,6 +26,10 @@
   function memberContactId(profile, email) {
     return String(profile.bitrixContactId || profile.bitrix_contact_id || (email ? localStorage.getItem(`v2sd_bitrix_contact_id:${email}`) : "") || new URLSearchParams(window.location.search).get("bitrixContactId") || new URLSearchParams(window.location.search).get("contactId") || "").trim();
   }
+  function hasMemberIdentity(profile) {
+    const email = memberEmail(profile);
+    return Boolean(email || memberContactId(profile, email));
+  }
   async function loadAccount(profile = getMemberProfile()) {
     const email = memberEmail(profile);
     const contactId = memberContactId(profile, email);
@@ -38,6 +45,15 @@
   }
   function formatMoney(value) { return `${Math.round(Number(value) || 0).toLocaleString("ru-RU")} ₽`; }
   function formatDate(value) { const date = new Date(value); return !value || Number.isNaN(date.getTime()) ? String(value || "") : date.toLocaleDateString("ru-RU"); }
+  function orderStatus(order) { return String(order.status || (order.canceled ? "Отменен" : "") || "").trim(); }
+  function publicComposition(value) { return String(value || "").replace(/\s*\((?:Покупка\s+с\s+витрины|ÐŸÐ¾ÐºÑƒÐ¿ÐºÐ°\s+Ñ\s+Ð²Ð¸Ñ‚Ñ€Ð¸Ð½Ñ‹)\)\s*$/i, "").trim(); }
+  function orderComposition(order) {
+    const composition = publicComposition(order.composition || order.title || "");
+    const status = orderStatus(order);
+    if (order.archived) return composition;
+    if (!status || status.toLowerCase() !== "отменен") return composition;
+    return composition.toLowerCase().includes("отмен") ? composition : `${composition} — ${status}`;
+  }
   function findHeading(text) {
     const expected = text.toLowerCase();
     return [...document.querySelectorAll("h1,h2,h3,.t-title,.t-heading,.t-name")].find((node) => node.textContent.trim().toLowerCase().includes(expected));
@@ -77,8 +93,9 @@
       const row = index === 0 && baseRow ? baseRow : (template ? template.cloneNode(true) : document.createElement("tr"));
       while (row.cells.length < 3) row.insertCell();
       row.cells[0].textContent = formatDate(order.date);
-      row.cells[1].textContent = order.composition || order.title || "";
+      row.cells[1].textContent = row.cells.length >= 4 ? publicComposition(order.composition || order.title || "") : orderComposition(order);
       row.cells[2].textContent = formatMoney(order.sum);
+      if (row.cells.length >= 4) row.cells[3].textContent = orderStatus(order);
       if (row !== baseRow) {
         row.dataset.v2sdHistoryGenerated = "true";
         tbody.appendChild(row);
@@ -96,11 +113,13 @@
   ready(async () => {
     try {
       const firstProfile = getMemberProfile();
-      const firstEmail = memberEmail(firstProfile);
-      await renderAccount(firstProfile);
-      waitForCurrentTildaProfile().then((profile) => {
-        if (memberEmail(profile) && memberEmail(profile) !== firstEmail) return renderAccount(profile);
-      }).catch(renderError);
+      if (hasMemberIdentity(firstProfile)) {
+        await renderAccount(firstProfile);
+        return;
+      }
+      const currentProfile = await waitForCurrentTildaProfile();
+      if (!hasMemberIdentity(currentProfile)) throw new Error("Не найден профиль пользователя Tilda Members.");
+      await renderAccount(currentProfile);
     } catch (error) { renderError(error); }
   });
 })();

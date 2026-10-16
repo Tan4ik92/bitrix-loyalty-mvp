@@ -1,25 +1,47 @@
 # Bitrix Loyalty MVP
 
-Локальный интерфейс поиска контакта Bitrix24 и просмотра полей программы лояльности.
+Local manager UI and public Tilda adapters for the V2SD loyalty program.
 
-## Запуск
+## Run locally
+
+Create `.env` from `.env.example` and put real secrets there. At minimum the server needs:
+
+```text
+VIBECODE_API_BASE=https://vibecode.bitrix24.tech
+VIBECODE_API_KEY=<personal vibe_api key>
+```
+
+Then run:
 
 ```powershell
 npm start
 ```
 
-Открыть:
+Open:
 
 ```text
 http://127.0.0.1:3100
 ```
 
-Сервер сначала читает `.env` из этой папки. Для локальной разработки он также может использовать `.env` существующего проекта интеграции через `LEGACY_ENV_FILE`.
+The server reads only this project's `.env` by default. `LEGACY_ENV_FILE` can be set explicitly for old local workflows, but there is no automatic fallback to another project's `.env`.
 
-## API
+## Public API
 
 ```text
-GET /api/contacts/search?q=<телефон или email>
+GET /api/health
+GET /api/contacts/search?q=<phone-or-email>
+GET /api/account/profile?email=<email>
+GET /api/promocodes/lookup?code=<code>
 ```
 
-API-ключ Bitrix24 хранится только на серверной стороне и не передаётся в браузер.
+The Bitrix24/VibeCode API key stays server-side and is never sent to browser scripts.
+
+## Current production server
+
+```text
+name: Loyalty_program
+server id: 0b1c98f9-a798-4eda-818b-9b107cecc6b2
+url: https://app-593caafbe7fb.vibecode.bitrix24.tech
+start: node backend/server.js
+workdir: /opt/app
+```

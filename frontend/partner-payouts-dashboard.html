@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Выплаты партнерам</title>
+  <link rel="stylesheet" href="/styles.css?v=partner-payout-dashboard-20261006g" />
+</head>
+<body class="dashboard-body">
+  <main class="dashboard-page">
+    <header class="dashboard-header">
+      <div>
+        <p class="eyebrow">V2 Sport Dress</p>
+        <h1>Выплаты партнерам</h1>
+      </div>
+    </header>
+
+    <section class="dashboard-filters" aria-label="Фильтры выплат">
+      <label class="field">
+        <span>Месяц</span>
+        <input id="payoutMonth" type="month" />
+      </label>
+      <label class="field">
+        <span>Тип</span>
+        <select id="payoutType">
+          <option value="">Все</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Стадия выплаты</span>
+        <select id="payoutStage">
+          <option value="">Все</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Стадия сделки</span>
+        <select id="payoutDealStage">
+          <option value="">Все</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Филиал</span>
+        <select id="payoutBranch">
+          <option value="">Все</option>
+          <option value="sokol">Сокол</option>
+          <option value="belka">Белка</option>
+          <option value="unassigned">Без филиала</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Оплачено</span>
+        <select id="payoutPaid">
+          <option value="">Все</option>
+          <option value="нет">Нет</option>
+          <option value="да">Да</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>Поиск</span>
+        <input id="payoutSearch" placeholder="Промокод или партнер" />
+      </label>
+      <button id="payoutRefresh" class="primary-button" type="button">Обновить</button>
+    </section>
+
+    <p id="payoutMessage" class="form-message" role="status"></p>
+
+    <section class="dashboard-actions" aria-label="Действия с выбранными выплатами">
+      <span id="payoutSelectionCount">Выбрано выплат: 0</span>
+      <button id="payoutMarkPaid" class="primary-button" type="button" disabled>Оплачено</button>
+    </section>
+
+    <section class="metric-grid" aria-label="Сводка">
+      <article class="metric"><span>Промокодов</span><b id="metricGroups">0</b></article>
+      <article class="metric"><span>Заказов</span><b id="metricOrders">0</b></article>
+      <article class="metric"><span>Сумма заказов</span><b id="metricOrderAmount">0 ₽</b></article>
+      <article class="metric"><span>Вознаграждение</span><b id="metricPayoutAmount">0 ₽</b></article>
+      <article class="metric"><span>К оплате</span><b id="metricUnpaidAmount">0 ₽</b></article>
+      <article class="metric"><span>Выплачено</span><b id="metricPaidAmount">0 ₽</b></article>
+    </section>
+
+    <section class="dashboard-table-wrap">
+      <table class="dashboard-table">
+        <colgroup>
+          <col style="width:3%"><col style="width:12%"><col style="width:16%">
+          <col style="width:8%"><col style="width:5%"><col style="width:12%">
+          <col style="width:4%"><col style="width:10%"><col style="width:16%"><col style="width:14%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th class="selection-column"><input id="payoutSelectAll" type="checkbox" aria-label="Выбрать все строки" /></th>
+            <th>Промокод</th>
+            <th>Партнер</th>
+            <th>Тип</th>
+            <th>Заказы</th>
+            <th>Сумма заказов</th>
+            <th>%</th>
+            <th>ЗП партнеру</th>
+            <th>Остаток для менеджера</th>
+            <th>К оплате</th>
+          </tr>
+        </thead>
+        <tbody id="payoutGroups"></tbody>
+      </table>
+    </section>
+  </main>
+  <script src="/partner-payouts-dashboard.js?v=partner-payout-dashboard-20261006g"></script>
+</body>
+</html>
