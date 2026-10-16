@@ -1,11 +1,10 @@
-<!-- V2SD: личный кабинет из Bitrix -->
-<!-- Для локальной проверки оставляем 127.0.0.1. Для боевого сайта заменить на публичный URL backend. -->
+<!-- V2SD Bitrix: profile + order history. Use only on the personal account page. -->
 <script>
-  window.V2SD_BITRIX_ACCOUNT_API = 'http://127.0.0.1:3100';
+  window.V2SD_BITRIX_ACCOUNT_API = 'https://app-593caafbe7fb.vibecode.bitrix24.tech';
 </script>
 
-<!-- Вставить в верхний блок личных данных -->
-<script src="http://127.0.0.1:3100/tilda-bitrix-profile.js?v=1"></script>
+<!-- Profile block: email, birthday, purchase total, discount, bonus balance. -->
+<script src="https://app-593caafbe7fb.vibecode.bitrix24.tech/tilda-bitrix-profile.js?v=5"></script>
 
-<!-- Вставить отдельным T123 рядом с таблицей истории заказов -->
-<script src="http://127.0.0.1:3100/tilda-bitrix-orders.js?v=2"></script>
+<!-- Order history block: changes only text inside the existing Tilda table. -->
+<script src="https://app-593caafbe7fb.vibecode.bitrix24.tech/tilda-bitrix-orders.js?v=6"></script>

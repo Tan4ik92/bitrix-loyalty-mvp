@@ -4,7 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Оформление заказа</title>
-  <link rel="stylesheet" href="/styles.css?v=tilda-captcha-1" />
+  <link rel="icon" type="image/svg+xml" sizes="32x32" href="https://static.tildacdn.com/tild3432-3137-4839-a661-326239643264/fav.svg" media="(prefers-color-scheme: light)" />
+  <link rel="icon" type="image/svg+xml" sizes="32x32" href="https://static.tildacdn.com/tild6665-3962-4535-b231-643536643437/fav.svg" media="(prefers-color-scheme: dark)" />
+  <link rel="icon" type="image/svg+xml" sizes="any" href="https://static.tildacdn.com/tild6165-3636-4031-b230-653734383733/fav.svg" />
+  <link rel="apple-touch-icon" type="image/png" href="https://static.tildacdn.com/tild3239-3537-4139-b730-366132356339/fav.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="https://static.tildacdn.com/tild3239-3537-4139-b730-366132356339/fav.png" />
+  <link rel="stylesheet" href="/styles.css?v=partner-payout-comment-20261006" />
 </head>
 <body>
   <main class="page">
@@ -18,14 +23,16 @@
 
     <nav class="tabs" aria-label="Работа с клиентом">
       <button class="tab active" type="button" data-tab="register">Зарегистрировать</button>
-      <button class="tab" type="button" data-tab="find">Найти клиента</button>
+      <button class="tab" type="button" data-tab="find">Офлайн заказ</button>
+      <button class="tab" type="button" data-tab="messenger">Заказ ВК/Макс/ТГ</button>
+      <button class="tab" type="button" data-tab="preorder">Предзаказ</button>
+      <button class="tab" type="button" data-tab="partnerPayout">&#1055;&#1088;&#1086;&#1084;&#1086;&#1082;&#1086;&#1076;</button>
     </nav>
 
     <section id="register" class="tab-content active">
       <div class="workspace">
         <aside class="panel client-panel">
           <div>
-            <p class="section-kicker">Новый клиент</p>
             <h2>Регистрация</h2>
           </div>
 
@@ -69,23 +76,77 @@
 
         <section class="panel order-panel">
           <div>
-            <p class="section-kicker">Черновик</p>
             <h2>Заказ</h2>
+          </div>
+          <div class="order-meta">
+            <label class="field order-branch">
+              <span>Филиал</span>
+              <select id="registerBranch">
+                <option value="sokol" selected>Сокол</option>
+                <option value="belka">Белка</option>
+              </select>
+            </label>
+            <label class="field order-responsible">
+              <span>Ответственный</span>
+              <select id="registerResponsible">
+                <option value="">Загружаем...</option>
+              </select>
+            </label>
           </div>
           <div id="registerOrderRows"></div>
           <button class="secondary-button" type="button" data-add-row="register">+ Добавить товар</button>
+          <div class="promo-row">
+            <label class="field">
+              <span>Промокод</span>
+              <input id="registerPromoCode" autocomplete="off" placeholder="Введите промокод" />
+            </label>
+            <button class="secondary-button promo-button" type="button" data-apply-promo="register">Применить</button>
+          </div>
+          <p id="registerPromoMessage" class="form-message promo-message" role="status"></p>
+          <div class="promo-row certificate-lookup-row">
+            <label class="field"><span>Сертификат</span><input id="registerCertificateCodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+            <button class="secondary-button promo-button" type="button" data-apply-certificate="register">Найти</button>
+          </div>
+          <p id="registerCertificateMessage" class="form-message promo-message" role="status"></p>
+          <div id="registerCertificatePanel" class="certificate-panel" hidden>
+            <div><span>Сертификат</span><b id="registerCertificateCode"></b></div>
+            <div><span>Доступный остаток</span><b><span id="registerCertificateBalance">0</span> ₽</b></div>
+            <div><span>Уже использовано</span><b><span id="registerCertificateUsed">0</span> ₽</b></div>
+            <label class="field"><span>Списать в этом заказе</span><input id="registerCertificateAmount" type="number" value="0" min="0" step="0.01" /></label>
+            <div id="registerCertificateLinks" class="certificate-links"></div>
+          </div>
+          <button class="secondary-button add-certificate-button" type="button" data-add-certificate="register">+ Добавить второй сертификат</button>
+          <div id="registerCertificate2Section" class="second-certificate-section" hidden>
+            <div class="promo-row certificate-lookup-row">
+              <label class="field"><span>Сертификат 2</span><input id="registerCertificate2CodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+              <button class="secondary-button promo-button" type="button" data-apply-certificate="register" data-certificate-slot="2">Найти</button>
+            </div>
+            <p id="registerCertificate2Message" class="form-message promo-message" role="status"></p>
+            <div id="registerCertificate2Panel" class="certificate-panel" hidden>
+              <div><span>Сертификат 2</span><b id="registerCertificate2Code"></b></div>
+              <div><span>Доступный остаток</span><b><span id="registerCertificate2Balance">0</span> ₽</b></div>
+              <div><span>Уже использовано</span><b><span id="registerCertificate2Used">0</span> ₽</b></div>
+              <label class="field"><span>Списать в этом заказе</span><input id="registerCertificate2Amount" type="number" value="0" min="0" step="0.01" /></label>
+              <div id="registerCertificate2Links" class="certificate-links"></div>
+            </div>
+          </div>
           <div class="order-summary">
             <h3>Расчёт</h3>
             <div class="summary-line"><span>Товары</span><b><span id="registerSubtotal">0</span> ₽</b></div>
             <div class="summary-line"><span>Скидка <span id="registerDiscountPercent">0</span>%</span><b>−<span id="registerDiscountAmount">0</span> ₽</b></div>
-            <label class="bonus-line">
-              <span><input id="registerUseBonuses" type="checkbox" /> Использовать бонусы</span>
-              <input id="registerBonusesToUse" type="number" value="0" min="0" />
-            </label>
+            <div class="bonus-line">
+              <span>Использовать бонусы</span>
+              <div id="registerBonusChoices" class="bonus-choices"></div>
+              <input id="registerUseBonuses" type="checkbox" hidden />
+              <input id="registerBonusesToUse" type="hidden" value="0" />
+            </div>
             <div class="summary-line"><span>Бонусы</span><b>−<span id="registerBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line"><span>Сертификат</span><b>−<span id="registerCertificateSummary">0</span> ₽</b></div>
+            <div id="registerCertificate2SummaryRow" class="summary-line" hidden><span>Сертификат 2</span><b>−<span id="registerCertificate2Summary">0</span> ₽</b></div>
             <div class="summary-line pay-total"><span>К оплате</span><span><span id="registerPayTotal">0</span> ₽</span></div>
           </div>
           <button class="main-button" type="button" data-create-order="register">Оформить заказ</button>
+          <p id="registerOrderMessage" class="form-message order-message" role="status"></p>
         </section>
       </div>
     </section>
@@ -94,7 +155,6 @@
       <div class="workspace">
         <aside class="panel client-panel">
           <div>
-            <p class="section-kicker">Bitrix24</p>
             <h2>Поиск клиента</h2>
           </div>
 
@@ -105,6 +165,7 @@
             </label>
             <button id="searchButton" class="primary-button" type="submit">Найти клиента</button>
             <p id="searchMessage" class="form-message" role="status"></p>
+            <div id="contactMatches" class="contact-matches" hidden></div>
           </form>
 
           <article class="client-card">
@@ -113,7 +174,7 @@
                 <div class="client-name" id="findClientName">Клиент не выбран</div>
                 <div class="client-contact" id="findClientContact">Введите телефон или email</div>
               </div>
-              <span id="findClientId" class="contact-id" hidden></span>
+              <span id="findClientId" class="contact-id" aria-label="Открыть контакт в Bitrix24" hidden></span>
             </div>
             <div class="client-stats">
               <div><span>Скидка</span><b id="findDiscountCard">0%</b></div>
@@ -131,32 +192,325 @@
               <div><dt>Последний заказ</dt><dd id="findLastOrder">—</dd></div>
               <div><dt>Дата заказа</dt><dd id="findLastOrderDate">—</dd></div>
               <div><dt>Сумма заказа</dt><dd id="findLastOrderSum">—</dd></div>
-              <div><dt>Синхронизация</dt><dd id="findSyncedAt">—</dd></div>
             </dl>
           </article>
         </aside>
 
         <section class="panel order-panel">
           <div>
-            <p class="section-kicker">Черновик</p>
             <h2>Заказ</h2>
+          </div>
+          <div class="order-meta">
+            <label class="field order-branch">
+              <span>Филиал</span>
+              <select id="findBranch">
+                <option value="sokol" selected>Сокол</option>
+                <option value="belka">Белка</option>
+              </select>
+            </label>
+            <label class="field order-responsible">
+              <span>Ответственный</span>
+              <select id="findResponsible">
+                <option value="">Загружаем...</option>
+              </select>
+            </label>
           </div>
           <div id="findOrderRows"></div>
           <button class="secondary-button" type="button" data-add-row="find">+ Добавить товар</button>
+          <div class="promo-row">
+            <label class="field">
+              <span>Промокод</span>
+              <input id="findPromoCode" autocomplete="off" placeholder="Введите промокод" />
+            </label>
+            <button class="secondary-button promo-button" type="button" data-apply-promo="find">Применить</button>
+          </div>
+          <p id="findPromoMessage" class="form-message promo-message" role="status"></p>
+          <div class="promo-row certificate-lookup-row">
+            <label class="field"><span>Сертификат</span><input id="findCertificateCodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+            <button class="secondary-button promo-button" type="button" data-apply-certificate="find">Найти</button>
+          </div>
+          <p id="findCertificateMessage" class="form-message promo-message" role="status"></p>
+          <div id="findCertificatePanel" class="certificate-panel" hidden>
+            <div><span>Сертификат</span><b id="findCertificateCode"></b></div>
+            <div><span>Доступный остаток</span><b><span id="findCertificateBalance">0</span> ₽</b></div>
+            <div><span>Уже использовано</span><b><span id="findCertificateUsed">0</span> ₽</b></div>
+            <label class="field"><span>Списать в этом заказе</span><input id="findCertificateAmount" type="number" value="0" min="0" step="0.01" /></label>
+            <div id="findCertificateLinks" class="certificate-links"></div>
+          </div>
+          <button class="secondary-button add-certificate-button" type="button" data-add-certificate="find">+ Добавить второй сертификат</button>
+          <div id="findCertificate2Section" class="second-certificate-section" hidden>
+            <div class="promo-row certificate-lookup-row">
+              <label class="field"><span>Сертификат 2</span><input id="findCertificate2CodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+              <button class="secondary-button promo-button" type="button" data-apply-certificate="find" data-certificate-slot="2">Найти</button>
+            </div>
+            <p id="findCertificate2Message" class="form-message promo-message" role="status"></p>
+            <div id="findCertificate2Panel" class="certificate-panel" hidden>
+              <div><span>Сертификат 2</span><b id="findCertificate2Code"></b></div>
+              <div><span>Доступный остаток</span><b><span id="findCertificate2Balance">0</span> ₽</b></div>
+              <div><span>Уже использовано</span><b><span id="findCertificate2Used">0</span> ₽</b></div>
+              <label class="field"><span>Списать в этом заказе</span><input id="findCertificate2Amount" type="number" value="0" min="0" step="0.01" /></label>
+              <div id="findCertificate2Links" class="certificate-links"></div>
+            </div>
+          </div>
           <div class="order-summary">
             <h3>Расчёт</h3>
             <div class="summary-line"><span>Товары</span><b><span id="findSubtotal">0</span> ₽</b></div>
             <div class="summary-line"><span>Скидка <span id="findDiscountPercent">0</span>%</span><b>−<span id="findDiscountAmount">0</span> ₽</b></div>
-            <label class="bonus-line">
-              <span><input id="findUseBonuses" type="checkbox" /> Использовать бонусы</span>
-              <input id="findBonusesToUse" type="number" value="0" min="0" />
-            </label>
+            <div class="bonus-line">
+              <span>Использовать бонусы</span>
+              <div id="findBonusChoices" class="bonus-choices"></div>
+              <input id="findUseBonuses" type="checkbox" hidden />
+              <input id="findBonusesToUse" type="hidden" value="0" />
+            </div>
             <div class="summary-line"><span>Бонусы</span><b>−<span id="findBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line"><span>Сертификат</span><b>−<span id="findCertificateSummary">0</span> ₽</b></div>
+            <div id="findCertificate2SummaryRow" class="summary-line" hidden><span>Сертификат 2</span><b>−<span id="findCertificate2Summary">0</span> ₽</b></div>
             <div class="summary-line pay-total"><span>К оплате</span><span><span id="findPayTotal">0</span> ₽</span></div>
           </div>
           <button class="main-button" type="button" data-create-order="find">Оформить заказ</button>
+          <p id="findOrderMessage" class="form-message order-message" role="status"></p>
         </section>
       </div>
+    </section>
+    <section id="messenger" class="tab-content">
+      <div class="workspace">
+        <aside class="panel client-panel">
+          <div>
+            <h2>Поиск клиента</h2>
+          </div>
+
+          <form id="messengerSearchForm">
+            <label class="field">
+              <span>Телефон или Email</span>
+              <input id="messengerSearchValue" autocomplete="off" placeholder="+7 999 000-00-00 или client@mail.ru" required />
+            </label>
+            <button id="messengerSearchButton" class="primary-button" type="submit">Найти клиента</button>
+            <p id="messengerSearchMessage" class="form-message" role="status"></p>
+            <div id="messengerContactMatches" class="contact-matches" hidden></div>
+          </form>
+
+          <article class="client-card">
+            <div class="client-heading">
+              <div>
+                <div class="client-name" id="messengerClientName">Клиент не выбран</div>
+                <div class="client-contact" id="messengerClientContact">Введите телефон или email</div>
+              </div>
+              <span id="messengerClientId" class="contact-id" aria-label="Открыть контакт в Bitrix24" hidden></span>
+            </div>
+            <div class="client-stats">
+              <div><span>Скидка</span><b id="messengerDiscountCard">0%</b></div>
+              <div><span>Покупки</span><b id="messengerPurchasesCard">0 ₽</b></div>
+              <div><span>Бонусы</span><b id="messengerBonusesCard">0 ₽</b></div>
+            </div>
+          </article>
+
+          <article class="details-card">
+            <h3>Информация о клиенте</h3>
+            <dl class="details-list">
+              <div><dt>Заказов</dt><dd id="messengerOrdersCount">—</dd></div>
+              <div><dt>Начислено бонусов</dt><dd id="messengerAccruedTotal">—</dd></div>
+              <div><dt>Списано бонусов</dt><dd id="messengerSpentTotal">—</dd></div>
+              <div><dt>Последний заказ</dt><dd id="messengerLastOrder">—</dd></div>
+              <div><dt>Дата заказа</dt><dd id="messengerLastOrderDate">—</dd></div>
+              <div><dt>Сумма заказа</dt><dd id="messengerLastOrderSum">—</dd></div>
+            </dl>
+          </article>
+        </aside>
+
+        <section class="panel order-panel">
+          <div>
+            <h2>Заказ ВК/Макс/ТГ</h2>
+          </div>
+          <div class="order-meta">
+            <label class="field order-branch">
+              <span>Филиал</span>
+              <select id="messengerBranch">
+                <option value="sokol" selected>Сокол</option>
+                <option value="belka">Белка</option>
+              </select>
+            </label>
+            <label class="field order-responsible">
+              <span>Ответственный</span>
+              <select id="messengerResponsible">
+                <option value="">Загружаем...</option>
+              </select>
+            </label>
+            <label class="field order-source">
+              <span>Источник</span>
+              <select id="messengerSourceId">
+                <option value="5|VK" selected>ВКонтакте - Группа ВК</option>
+                <option value="1|ANK_CHATS_APP24_MAX">ChatApp - Max - V2SD Сокол</option>
+                <option value="UC_9XUL9I">ChatApp - Max - V2SD Белка</option>
+                <option value="UC_T7RCF2">ChatApp - Телеграм - V2SD Сокол</option>
+                <option value="UC_NLOT68">ChatApp - Телеграм - V2SD Белка</option>
+              </select>
+            </label>
+            <label class="field order-payment-status">
+              <span>Статус оплаты</span>
+              <select id="messengerPaymentStatus">
+                <option value="unpaid" selected>Не оплачен</option>
+                <option value="paid">Оплачен</option>
+              </select>
+            </label>
+          </div>
+          <div id="messengerOrderRows"></div>
+          <button class="secondary-button" type="button" data-add-row="messenger">+ Добавить товар</button>
+          <div class="promo-row">
+            <label class="field">
+              <span>Промокод</span>
+              <input id="messengerPromoCode" autocomplete="off" placeholder="Введите промокод" />
+            </label>
+            <button class="secondary-button promo-button" type="button" data-apply-promo="messenger">Применить</button>
+          </div>
+          <p id="messengerPromoMessage" class="form-message promo-message" role="status"></p>
+          <div class="promo-row certificate-lookup-row">
+            <label class="field"><span>Сертификат</span><input id="messengerCertificateCodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+            <button class="secondary-button promo-button" type="button" data-apply-certificate="messenger">Найти</button>
+          </div>
+          <p id="messengerCertificateMessage" class="form-message promo-message" role="status"></p>
+          <div id="messengerCertificatePanel" class="certificate-panel" hidden>
+            <div><span>Сертификат</span><b id="messengerCertificateCode"></b></div>
+            <div><span>Доступный остаток</span><b><span id="messengerCertificateBalance">0</span> ₽</b></div>
+            <div><span>Уже использовано</span><b><span id="messengerCertificateUsed">0</span> ₽</b></div>
+            <label class="field"><span>Списать в этом заказе</span><input id="messengerCertificateAmount" type="number" value="0" min="0" step="0.01" /></label>
+            <div id="messengerCertificateLinks" class="certificate-links"></div>
+          </div>
+          <button class="secondary-button add-certificate-button" type="button" data-add-certificate="messenger">+ Добавить второй сертификат</button>
+          <div id="messengerCertificate2Section" class="second-certificate-section" hidden>
+            <div class="promo-row certificate-lookup-row">
+              <label class="field"><span>Сертификат 2</span><input id="messengerCertificate2CodeInput" autocomplete="off" placeholder="Введите код сертификата" /></label>
+              <button class="secondary-button promo-button" type="button" data-apply-certificate="messenger" data-certificate-slot="2">Найти</button>
+            </div>
+            <p id="messengerCertificate2Message" class="form-message promo-message" role="status"></p>
+            <div id="messengerCertificate2Panel" class="certificate-panel" hidden>
+              <div><span>Сертификат 2</span><b id="messengerCertificate2Code"></b></div>
+              <div><span>Доступный остаток</span><b><span id="messengerCertificate2Balance">0</span> ₽</b></div>
+              <div><span>Уже использовано</span><b><span id="messengerCertificate2Used">0</span> ₽</b></div>
+              <label class="field"><span>Списать в этом заказе</span><input id="messengerCertificate2Amount" type="number" value="0" min="0" step="0.01" /></label>
+              <div id="messengerCertificate2Links" class="certificate-links"></div>
+            </div>
+          </div>
+          <div class="order-summary">
+            <h3>Расчёт</h3>
+            <div class="summary-line"><span>Товары</span><b><span id="messengerSubtotal">0</span> ₽</b></div>
+            <div class="summary-line"><span>Скидка <span id="messengerDiscountPercent">0</span>%</span><b>−<span id="messengerDiscountAmount">0</span> ₽</b></div>
+            <div class="bonus-line">
+              <span>Использовать бонусы</span>
+              <div id="messengerBonusChoices" class="bonus-choices"></div>
+              <input id="messengerUseBonuses" type="checkbox" hidden />
+              <input id="messengerBonusesToUse" type="hidden" value="0" />
+            </div>
+            <div class="summary-line"><span>Бонусы</span><b>−<span id="messengerBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line"><span>Сертификат</span><b>−<span id="messengerCertificateSummary">0</span> ₽</b></div>
+            <div id="messengerCertificate2SummaryRow" class="summary-line" hidden><span>Сертификат 2</span><b>−<span id="messengerCertificate2Summary">0</span> ₽</b></div>
+            <div class="summary-line pay-total"><span>К оплате</span><span><span id="messengerPayTotal">0</span> ₽</span></div>
+          </div>
+          <button class="main-button" type="button" data-create-order="messenger">Оформить заказ</button>
+          <p id="messengerOrderMessage" class="form-message order-message" role="status"></p>
+        </section>
+      </div>
+    </section>
+    <section id="preorder" class="tab-content">
+      <div class="workspace">
+        <aside class="panel client-panel">
+          <div>
+            <h2>Предзаказ</h2>
+          </div>
+
+          <article class="client-card">
+            <div class="client-heading">
+              <div>
+                <div class="client-name" id="preorderClientName">Клиент не выбран</div>
+                <div class="client-contact" id="preorderClientContact">Выберите клиента во вкладке поиска</div>
+              </div>
+              <span id="preorderClientId" class="contact-id" hidden></span>
+            </div>
+          </article>
+
+          <article class="details-card">
+            <h3>Товары предзаказа</h3>
+            <p class="note">В этой вкладке доступны только позиции из списка предзаказов.</p>
+          </article>
+        </aside>
+
+        <section class="panel order-panel">
+          <div>
+            <h2>Лист ожидания</h2>
+          </div>
+          <div class="order-meta">
+            <label class="field order-branch">
+              <span>Филиал</span>
+              <select id="preorderBranch">
+                <option value="sokol" selected>Сокол</option>
+                <option value="belka">Белка</option>
+              </select>
+            </label>
+            <label class="field order-responsible">
+              <span>Ответственный</span>
+              <select id="preorderResponsible">
+                <option value="">Загружаем...</option>
+              </select>
+            </label>
+          </div>
+          <div id="preorderOrderRows"></div>
+          <button class="secondary-button" type="button" data-add-row="preorder">+ Добавить товар</button>
+          <div class="order-summary">
+            <h3>Расчёт</h3>
+            <div class="summary-line"><span>Товары</span><b><span id="preorderSubtotal">0</span> ₽</b></div>
+            <div class="summary-line"><span>Скидка <span id="preorderDiscountPercent">0</span>%</span><b>−<span id="preorderDiscountAmount">0</span> ₽</b></div>
+            <div class="bonus-line">
+              <span>Использовать бонусы</span>
+              <div id="preorderBonusChoices" class="bonus-choices"></div>
+              <input id="preorderUseBonuses" type="checkbox" hidden disabled />
+              <input id="preorderBonusesToUse" type="hidden" value="0" disabled />
+            </div>
+            <div class="summary-line"><span>Бонусы</span><b>−<span id="preorderBonusAmount">0</span> ₽</b></div>
+            <div class="summary-line pay-total"><span>К оплате</span><span><span id="preorderPayTotal">0</span> ₽</span></div>
+          </div>
+          <button class="main-button" type="button" data-create-order="preorder">Создать предзаказ</button>
+          <p id="preorderOrderMessage" class="form-message order-message" role="status"></p>
+        </section>
+      </div>
+    </section>
+    <section id="partnerPayout" class="tab-content">
+      <section class="panel partner-payout-panel">
+        <div>
+          <h2>&#1055;&#1088;&#1086;&#1084;&#1086;&#1082;&#1086;&#1076;</h2>
+        </div>
+        <div class="partner-payout-grid">
+          <label class="field">
+            <span>&#1057;&#1091;&#1084;&#1084;&#1072; &#1079;&#1072;&#1082;&#1072;&#1079;&#1072; &#1089;&#1086; &#1089;&#1082;&#1080;&#1076;&#1082;&#1086;&#1081;</span>
+            <input id="partnerPayoutAmount" type="number" min="0" step="0.01" placeholder="0" />
+          </label>
+          <label class="field">
+            <span>&#1055;&#1088;&#1086;&#1084;&#1086;&#1082;&#1086;&#1076;</span>
+            <input id="partnerPayoutCode" autocomplete="off" placeholder="PROMO" />
+          </label>
+          <label class="field">
+            <span>Филиал</span>
+            <select id="partnerPayoutBranch">
+              <option value="sokol" selected>Сокол</option>
+              <option value="belka">Белка</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Ответственный</span>
+            <select id="partnerPayoutResponsible">
+              <option value="">Загружаем...</option>
+            </select>
+          </label>
+        </div>
+        <label class="field partner-payout-comment-field">
+          <span>Комментарий (необязательно)</span>
+          <textarea id="partnerPayoutComment" rows="3" maxlength="4000" placeholder="Что нужно уточнить по выплате"></textarea>
+        </label>
+        <button id="partnerPayoutButton" class="main-button" type="button">&#1054;&#1092;&#1086;&#1088;&#1084;&#1080;&#1090;&#1100;</button>
+        <p id="partnerPayoutMessage" class="form-message order-message" role="status"></p>
+        <article id="partnerPayoutResult" class="partner-payout-result" hidden>
+          <div><span>&#1055;&#1072;&#1088;&#1090;&#1085;&#1077;&#1088;</span><b id="partnerPayoutPartner">-</b></div>
+          <div><span>ID &#1082;&#1072;&#1088;&#1090;&#1086;&#1095;&#1082;&#1080;</span><b id="partnerPayoutId">-</b></div>
+        </article>
+      </section>
     </section>
   </main>
 
@@ -170,6 +524,6 @@
     </div>
   </template>
 
-  <script src="/app.js?v=tilda-captcha-1"></script>
+  <script src="/app.js?v=amount-adjustment-20261006"></script>
 </body>
 </html>

@@ -40,6 +40,10 @@
     return String(profile.login || profile.email || profile.mail || "").trim().toLowerCase();
   }
 
+  function memberToken(profile) {
+    return String(profile.token || window.tcartAuthState?.mauser?.token || window.mauser?.token || "").trim();
+  }
+
   function memberContactId(profile, email) {
     return String(
       profile.bitrixContactId ||
@@ -66,7 +70,17 @@
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "Bitrix не вернул данные личного кабинета.");
     if (!payload.contact) throw new Error("Контакт не найден в Bitrix.");
+    payload.memberEmail = email;
+    payload.memberToken = memberToken(profile);
+    payload.memberProjectId = String(profile.projectid || PROJECT_ID || "");
     return payload;
+  }
+
+  function memberAuthHeaders(account) {
+    return {
+      "X-Tilda-Member-Token": account.memberToken || "",
+      "X-Tilda-Project-Id": account.memberProjectId || PROJECT_ID || "",
+    };
   }
 
   function formatMoney(value) {
@@ -87,6 +101,7 @@
       .replaceAll('"', "&quot;");
   }
 
+
   function findHeading(text) {
     const expected = text.toLowerCase();
     return [...document.querySelectorAll("h1,h2,h3,.t-title,.t-heading,.t-name")]
@@ -96,6 +111,7 @@
   function renderSummary(account) {
     const contact = account.contact;
     const loyalty = contact.loyalty || {};
+    const loginEmail = account.memberEmail || contact.email || "";
     const heading = findHeading("личный кабинет") || document.querySelector("h1,h2,.t-title");
     let summary = document.getElementById("v2sd-account-summary");
     if (!summary) {
@@ -112,9 +128,12 @@
     summary.style.lineHeight = sourceStyle?.lineHeight || "1.45";
     summary.style.fontWeight = sourceStyle?.fontWeight || "400";
     summary.style.letterSpacing = sourceStyle?.letterSpacing || "normal";
+    const phones = Array.isArray(contact.phones) ? contact.phones.filter(Boolean) : (contact.phone ? [contact.phone] : []);
 
     summary.innerHTML = [
-      contact.email ? `<div>Почта: ${escapeHtml(contact.email)}</div>` : "",
+      contact.fullName ? `<div>ФИО: ${escapeHtml(contact.fullName)}</div>` : "",
+      phones.length ? `<div>Телефон: ${phones.map(escapeHtml).join(", ")}</div>` : "",
+      loginEmail ? `<div>Почта: ${escapeHtml(loginEmail)}</div>` : "",
       contact.birthdate
         ? `<div id="v2sd-birthday-row">День рождения: <span id="v2sd-birthday-value">${escapeHtml(formatDate(contact.birthdate))}</span> <button id="v2sd-birthday-edit" type="button" style="margin-left:8px;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;font-size:.8em;">Изменить</button></div>`
         : `<div id="v2sd-birthday-row">День рождения: <button id="v2sd-birthday-edit" type="button" style="margin-left:4px;border:0;background:transparent;color:inherit;text-decoration:underline;cursor:pointer;font:inherit;padding:0;">Указать</button></div>`,
@@ -125,7 +144,7 @@
 
     bindBirthdateEditor(account);
 
-    if (contact.email) localStorage.setItem(`v2sd_bitrix_contact_id:${contact.email.toLowerCase()}`, String(contact.id || ""));
+    if (loginEmail) localStorage.setItem(`v2sd_bitrix_contact_id:${loginEmail.toLowerCase()}`, String(contact.id || ""));
     localStorage.setItem("v2sd_loyalty_balance", String(loyalty.balance || 0));
     localStorage.setItem("v2sd_discount_percent", String(loyalty.discountPercent || 0));
     if (account.promo?.code) localStorage.setItem("v2sd_promocode", account.promo.code);
@@ -166,7 +185,7 @@
     try {
       const response = await fetch(`${API_BASE}/api/account/profile/birthdate`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        headers: { "Content-Type": "application/json", Accept: "application/json", ...memberAuthHeaders(account) },
         body: JSON.stringify({
           contactId: account.contact.id,
           email: account.contact.email,
@@ -237,7 +256,7 @@
       const row = template ? template.cloneNode(true) : document.createElement("tr");
       while (row.cells.length < 3) row.insertCell();
       row.cells[0].textContent = formatDate(order.date);
-      row.cells[1].textContent = order.composition || order.title || "";
+      row.cells[1].textContent = publicComposition(order.composition || order.title || "");
       row.cells[2].textContent = formatMoney(order.sum);
       tbody.appendChild(row);
     });
@@ -257,6 +276,10 @@
     return [...orders, ...registrationBonus].sort((left, right) => {
       return new Date(right.date || 0).getTime() - new Date(left.date || 0).getTime();
     });
+  }
+
+  function publicComposition(value) {
+    return String(value || "").replace(/\s*\((?:Покупка\s+с\s+витрины|ÐŸÐ¾ÐºÑƒÐ¿ÐºÐ°\s+Ñ\s+Ð²Ð¸Ñ‚Ñ€Ð¸Ð½Ñ‹)\)\s*$/i, "").trim();
   }
 
   function renderPromo(account) {
@@ -280,7 +303,8 @@
   async function renderAccount(profile) {
     const account = await loadAccount(profile);
     renderSummary(account);
-    renderOrders(account);
+    // Order history now has its own Tilda adapter. Keep this legacy file from
+    // rebuilding the native Tilda table when an old include is still present.
     renderPromo(account);
     return account;
   }
